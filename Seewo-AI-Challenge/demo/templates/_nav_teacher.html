@@ -1,0 +1,8 @@
+{# Teacher navigation — shared via include. Pass `active` to mark current. #}
+{% set active = active|default('') %}
+<a href="/teacher" class="nav-link {% if active=='dashboard' %}active{% endif %}"><i data-lucide="layout-dashboard"></i> 作业管理</a>
+<a href="/teacher/grade/hw_001" class="nav-link {% if active=='grade' %}active{% endif %}"><i data-lucide="pen-line"></i> 批改详情</a>
+<a href="/teacher/review/hw_001" class="nav-link {% if active=='review' %}active{% endif %}"><i data-lucide="search-check"></i> AI复核</a>
+<a href="/teacher/correction-loop/hw_001" class="nav-link {% if active=='correction' %}active{% endif %}"><i data-lucide="repeat"></i> 订正闭环</a>
+<a href="/teacher/agent-trace/hw_001" class="nav-link {% if active=='agent' %}active{% endif %}"><i data-lucide="bot"></i> Agent追踪</a>
+<a href="/teacher/analytics/hw_001" class="nav-link {% if active=='analytics' %}active{% endif %}"><i data-lucide="bar-chart-3"></i> 学情分析</a>

@@ -1,0 +1,52 @@
+{
+  "tree": {
+    "name": "函数",
+    "children": [
+      {
+        "name": "定义域",
+        "mastery": 95,
+        "children": [
+          {"name": "分式函数定义域", "mastery": 95, "children": []},
+          {"name": "根式函数定义域", "mastery": 90, "children": []},
+          {"name": "对数函数定义域", "mastery": 100, "children": []}
+        ]
+      },
+      {
+        "name": "值域",
+        "mastery": 85,
+        "children": [
+          {"name": "配方法求值域", "mastery": 85, "children": []},
+          {"name": "换元法求值域", "mastery": 80, "children": []}
+        ]
+      },
+      {
+        "name": "单调性",
+        "mastery": 45,
+        "children": [
+          {"name": "定义法判断单调性", "mastery": 60, "children": []},
+          {"name": "导数法判断单调性", "mastery": 40, "children": []},
+          {"name": "含参单调性讨论", "mastery": 30, "children": []}
+        ],
+        "weakness_detail": "对含参函数讨论的'分类标准'选择感到困惑——什么时候按a>0/a=0/a<0分类？什么时候按Δ分类？需要建立系统的分类讨论思维框架。"
+      },
+      {
+        "name": "奇偶性",
+        "mastery": 70,
+        "children": [
+          {"name": "判断奇偶性", "mastery": 75, "children": []},
+          {"name": "利用奇偶性解题", "mastery": 65, "children": []}
+        ]
+      },
+      {
+        "name": "导数",
+        "mastery": 55,
+        "children": [
+          {"name": "导数的计算", "mastery": 80, "children": []},
+          {"name": "导数与单调性", "mastery": 50, "children": []},
+          {"name": "极值与最值", "mastery": 60, "children": []},
+          {"name": "切线问题", "mastery": 70, "children": []}
+        ]
+      }
+    ]
+  }
+}

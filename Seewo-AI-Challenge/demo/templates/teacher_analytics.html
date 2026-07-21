@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}学情分析 — 希沃智教π{% endblock %}
+{% block nav %}
+  {% set active = 'analytics' %}{% include "_nav_teacher.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-fade-in">
+  <div>
+    <h1 class="text-2xl font-extrabold text-gray-900">📊 学情分析仪表盘</h1>
+    <p class="text-sm text-gray-400 mt-1">{{ data.assignment_title }} · {{ data.total_students }}名学生 · 近30天</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="score-pill good">数据驱动</span>
+    <button class="btn btn-outline btn-sm">📥 导出报告</button>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="stats-grid stagger mb-6">
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="0">
+    <div class="flex items-end gap-2"><div class="stat-value text-primary-400">{{ data.class_average }}</div><span class="text-sm text-gray-400 pb-1">/50</span></div>
+    <div class="stat-label">班级平均分</div>
+  </div>
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="80">
+    <div class="stat-value text-red-500">{{ data.question_stats|selectattr('correct_rate', 'lt', 70)|list|length }}</div>
+    <div class="stat-label">薄弱题目 <span class="text-xs text-red-400">正确率 < 70%</span></div>
+  </div>
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="160">
+    <div class="stat-value text-amber-500">{{ data.knowledge_heatmap|selectattr('status', 'equalto', 'danger')|list|length }}</div>
+    <div class="stat-label">待强化知识点 <span class="text-xs text-amber-500">掌握率 < 60%</span></div>
+  </div>
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="240">
+    <div class="stat-value text-green-500">{{ data.knowledge_heatmap|selectattr('status', 'equalto', 'good')|list|length }}</div>
+    <div class="stat-label">已掌握知识点 <span class="text-xs text-green-500">≥ 80%</span></div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Knowledge Heatmap -->
+  <div class="content-card" data-aos="fade-right">
+    <div class="content-card-header"><span class="content-card-title">🔥 知识点掌握热力图</span></div>
+    <div class="flex flex-col gap-3">
+      {% for kp in data.knowledge_heatmap %}
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-sm font-bold text-gray-700">{{ kp.knowledge }}</span>
+          <span class="text-sm font-extrabold {% if kp.status == 'good' %}text-green-500{% elif kp.status == 'warning' %}text-amber-500{% else %}text-red-500{% endif %}">{{ kp.mastery_rate }}%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="fill {% if kp.status == 'good' %}good{% elif kp.status == 'warning' %}warning{% else %}danger{% endif %}" style="width:{{ kp.mastery_rate }}%;"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Student Ranking -->
+  <div class="content-card" data-aos="fade-left">
+    <div class="content-card-header"><span class="content-card-title">🏆 学生成绩排名</span></div>
+    <div class="flex flex-col gap-2">
+      {% for s in data.student_scores %}
+      <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+        <span class="font-extrabold text-sm w-6 text-center {% if loop.index <= 2 %}text-amber-500{% else %}text-gray-300{% endif %}">
+          {{ loop.index }}
+        </span>
+        <div class="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm" style="background:{{ s.avatar_color }};">{{ s.name[0] }}</div>
+        <div class="flex-1 min-w-0">
+          <a href="/student/{{ s.id }}/dashboard" class="font-bold text-sm text-gray-800 hover:text-primary-400 no-underline truncate">{{ s.name }}</a>
+          <div class="text-xs text-gray-400">{{ s.class }}</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="progress-bar w-16 hidden sm:block"><div class="fill {% if s.percentage >= 80 %}good{% elif s.percentage >= 60 %}warning{% else %}danger{% endif %}" style="width:{{ s.percentage }}%;"></div></div>
+          <span class="font-extrabold text-base {% if s.percentage >= 80 %}text-green-500{% elif s.percentage >= 60 %}text-amber-500{% else %}text-red-500{% endif %}">{{ s.percentage }}%</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Per-Question Analysis -->
+<div class="content-card mt-5" data-aos="fade-up">
+  <div class="content-card-header"><span class="content-card-title">📋 逐题分析</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>题号</th><th>题型</th><th>题目</th><th>正确率</th><th>知识点</th><th>主要错误类型</th></tr></thead>
+      <tbody>
+        {% for qs in data.question_stats %}
+        <tr>
+          <td class="font-bold text-sm">{{ qs.id.upper() }}</td>
+          <td>
+            <span class="score-pill {% if qs.type == 'choice' %}good{% elif qs.type == 'fill_blank' %}warn{% else %}good{% endif %} text-xs" style="{% if qs.type == 'long_answer' %}background:#eef1fe;color:#1d4ed8;{% endif %}">
+              {% if qs.type == 'choice' %}选择{% elif qs.type == 'fill_blank' %}填空{% else %}解答{% endif %}
+            </span>
+          </td>
+          <td class="text-sm text-gray-600 max-w-[200px] truncate">{{ qs.stem }}</td>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="progress-bar w-14"><div class="fill {% if qs.correct_rate >= 80 %}good{% elif qs.correct_rate >= 60 %}warning{% else %}danger{% endif %}" style="width:{{ qs.correct_rate }}%;"></div></div>
+              <span class="font-extrabold text-sm {% if qs.correct_rate >= 80 %}text-green-500{% elif qs.correct_rate >= 60 %}text-amber-500{% else %}text-red-500{% endif %}">{{ qs.correct_rate }}%</span>
+            </div>
+          </td>
+          <td class="text-xs text-gray-500">{{ qs.knowledge }}</td>
+          <td>
+            {% if qs.error_distribution %}
+            {% for et, cnt in qs.error_distribution.items() %}
+            <span class="score-pill bad text-xs mr-1">{{ et }} ×{{ cnt }}</span>
+            {% endfor %}
+            {% else %}<span class="text-xs text-gray-300">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- AI Insights -->
+<div class="mt-5 p-6 rounded-2xl bg-insight border border-indigo-200 animate-scale-in" data-aos="zoom-in">
+  <div class="flex items-center gap-2 mb-4"><i data-lucide="lightbulb" class="w-5 h-5 text-primary-400"></i><span class="font-extrabold text-gray-800">教学建议</span></div>
+  <div class="text-sm text-gray-600 leading-relaxed space-y-2">
+    <p>1. <strong class="text-gray-800">「含参函数分类讨论」</strong>为当前最薄弱知识点——5名中2人在Q5第②步未正确配方。建议集体备课中重点研讨配方法逆向操作的教学策略。</p>
+    <p>2. <strong class="text-gray-800">概念→应用鸿沟</strong>：「导数判断单调性」在选择题中正确率80%，但在解答题Q6中仅40%，需在课堂中增加"陷阱题"训练。</p>
+    <p>3. <strong class="text-gray-800">个别关注</strong>：陈雨桐存在概念混淆，建议单独辅导；王浩然有未作答情况，需了解背后原因。</p>
+  </div>
+</div>
+{% endblock %}

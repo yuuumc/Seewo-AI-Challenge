@@ -1,0 +1,44 @@
+{
+  "s01_hw_001": {
+    "agents": ["OCR Agent", "Math Reasoning Agent"],
+    "confidence": [0.99, 0.98, 1.0, 0.96, 0.94, 0.93],
+    "trace": "OCR(6题全识别) → Math Agent(客观题4题+解答题2题·全对·置信度均>0.9)",
+    "review_needed": false
+  },
+  "s02_hw_001": {
+    "agents": ["OCR Agent", "Math Reasoning Agent", "Knowledge Graph Agent", "Diagnosis Agent"],
+    "confidence": [0.97, 0.98, 0.95, 0.88, 0.72, 0.68],
+    "trace": "OCR(6题全识别) → Math Agent(Q5步骤②置信度0.72·Q6步骤④置信度0.68) → KG Agent(匹配'配方法''单调性定义'知识点) → Diagnosis(标记2题需复核)",
+    "review_needed": true,
+    "review_items": [
+      {"question": "q5", "step": 2, "confidence": 0.72, "reason": "配方法错误判定需教师确认——学生是否真的漏写了+a²还是跳步"},
+      {"question": "q6", "step": 4, "confidence": 0.68, "reason": "'不单调'理解偏差的判定——可能是概念混淆也可能是读题不仔细"}
+    ]
+  },
+  "s03_hw_001": {
+    "agents": ["OCR Agent", "Math Reasoning Agent", "Knowledge Graph Agent", "Diagnosis Agent", "Teaching Strategy Agent"],
+    "confidence": [0.97, 0.82, 1.0, 0.95, 0.78, 1.0],
+    "trace": "OCR(6题·Q3未作答识别为空·Q6未作答) → Math Agent(Q5置信度0.78·逻辑跳跃判定) → KG Agent(关联'导数符号判断'前置知识) → Diagnosis(标记Q6未作答需关注) → Strategy(建议了解学生是否存在学习动力问题)",
+    "review_needed": true,
+    "review_items": [
+      {"question": "q5", "step": 3, "confidence": 0.78, "reason": "逻辑跳跃判定——学生方向正确但省略了关键判断步骤"},
+      {"question": "q6", "step": 1, "confidence": 1.0, "reason": "完全未作答——非AI能力问题，需要教师了解学生情况"}
+    ]
+  },
+  "s04_hw_001": {
+    "agents": ["OCR Agent", "Math Reasoning Agent"],
+    "confidence": [0.99, 0.99, 1.0, 0.96, 0.95, 0.94],
+    "trace": "OCR(6题全识别) → Math Agent(客观题4题+解答题2题·全对·Q6识别出'陷阱题'额外加分)",
+    "review_needed": false
+  },
+  "s05_hw_001": {
+    "agents": ["OCR Agent", "Math Reasoning Agent", "Knowledge Graph Agent"],
+    "confidence": [0.98, 0.96, 0.94, 0.95, 0.75, 0.80],
+    "trace": "OCR(6题全识别) → Math Agent(Q5置信度0.75·Q6置信度0.80·表述不严谨判定) → KG Agent(关联'数学语言规范性'标签)",
+    "review_needed": true,
+    "review_items": [
+      {"question": "q5", "step": 3, "confidence": 0.75, "reason": "'≥0但未说明原因'判定为表述不严谨——可能与教师评分风格有关"},
+      {"question": "q6", "step": 3, "confidence": 0.80, "reason": "'导数始终为负'表述有歧义——是否影响最终判分需教师判断"}
+    ]
+  }
+}

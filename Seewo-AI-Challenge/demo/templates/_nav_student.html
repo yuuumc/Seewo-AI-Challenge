@@ -1,0 +1,8 @@
+{# Student navigation — shared via include. Pass `sid` and `active` to mark current. #}
+{% set active = active|default('') %}
+{% set sid = sid|default('') %}
+<a href="/student/{{ sid }}/dashboard" class="nav-link {% if active=='dashboard' %}active{% endif %}"><i data-lucide="home"></i> 首页</a>
+<a href="/student/{{ sid }}/error-book" class="nav-link {% if active=='error-book' %}active{% endif %}"><i data-lucide="book-x"></i> AI错题本</a>
+<a href="/student/{{ sid }}/knowledge-tree" class="nav-link {% if active=='knowledge-tree' %}active{% endif %}"><i data-lucide="git-fork"></i> 知识树</a>
+<a href="/student/{{ sid }}/coach" class="nav-link {% if active=='coach' %}active{% endif %}"><i data-lucide="message-circle"></i> AI助学</a>
+<a href="/student/{{ sid }}/growth" class="nav-link {% if active=='growth' %}active{% endif %}"><i data-lucide="trending-up"></i> 成长报告</a>

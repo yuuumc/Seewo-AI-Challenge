@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}成长报告 — {{ data.student.name }}{% endblock %}
+{% block nav %}
+  {% set sid = data.student.id %}{% set active = 'growth' %}{% include "_nav_student.html" %}
+{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<div class="text-center p-10 rounded-2xl bg-insight border border-indigo-200 mb-6 animate-scale-in">
+  <div class="text-sm text-gray-400 mb-2">知识掌握度 · {{ data.period }}</div>
+  <div class="text-6xl font-black text-primary-400">{{ data.overall_mastery }}%<span class="text-2xl text-green-500 ml-3">↑{{ data.change }}%</span></div>
+  <div class="text-sm text-gray-400 mt-3">相比上月提升 {{ data.change }} 个百分点</div>
+</div>
+
+<div class="grid-2">
+  <div class="content-card">
+    <div class="content-card-header"><span class="content-card-title">📈 本月提升最快</span></div>
+    {% for imp in data.improvements %}
+    <div class="p-4 mb-2 rounded-xl bg-green-50">
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-bold text-sm">{{ imp.topic }}</span><span class="text-sm">{% for _ in range(imp.stars) %}⭐{% endfor %}</span>
+      </div>
+      <div class="text-xs text-gray-500">{{ imp.before }}% <span class="text-green-500 font-bold">→ {{ imp.after }}% ↑{{ imp.after - imp.before }}%</span></div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="content-card">
+    <div class="content-card-header"><span class="content-card-title">🎯 仍需加强</span></div>
+    {% for w in data.weaknesses %}
+    <div class="p-4 mb-2 rounded-xl bg-red-50">
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-bold text-sm">{{ w.topic }}</span><span class="text-sm">{% for _ in range(w.stars) %}⭐{% endfor %}</span>
+      </div>
+      <div class="text-xs text-red-600 mb-2">掌握度 {{ w.mastery }}% — {{ w.detail }}</div>
+      <div class="progress-bar w-full"><div class="fill danger" style="width:{{ w.mastery }}%;"></div></div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="grid-2 mt-5">
+  <div class="bg-dark-card rounded-2xl p-8 text-white">
+    <div class="text-xs text-gray-400 mb-3">🤖 AI预测</div>
+    <div class="text-sm text-gray-300 mb-4">基于当前学习趋势，预计下次考试</div>
+    <div class="text-5xl font-black">{{ data.ai_prediction.predicted_score }}</div>
+    <div class="text-sm text-gray-400 mt-1">±5分 · 范围 {{ data.ai_prediction.range[0] }}-{{ data.ai_prediction.range[1] }}</div>
+    <div class="mt-4 p-4 rounded-xl bg-white/10 text-xs leading-relaxed">💡 {{ data.ai_prediction.note }}</div>
+  </div>
+
+  <div class="content-card">
+    <div class="content-card-header"><span class="content-card-title">📊 学习统计</span></div>
+    <div class="space-y-4">
+      <div>
+        <div class="flex items-center justify-between mb-1"><span class="font-bold text-sm">本月学习时长</span><span class="text-xl font-extrabold text-primary-400">{{ data.study_hours.this_month }}h</span></div>
+        <span class="text-xs text-green-500">↑ 上月 {{ data.study_hours.last_month }}h</span>
+      </div>
+      <div>
+        <div class="text-sm font-bold mb-2">错题趋势（4周）</div>
+        <div class="flex items-end gap-2 h-14">
+          {% for mt in data.mistake_trend %}
+          <div class="flex-1 text-center"><div class="w-full rounded-t-md transition-all" style="height:{{ mt.count*4 }}px;background:{% if loop.last %}#10b981{% else %}#4a6cf7{% endif %};opacity:.85;"></div><div class="text-[10px] text-gray-400 mt-1">{{ mt.week }}</div><div class="text-[10px] font-bold">{{ mt.count }}</div></div>
+          {% endfor %}
+        </div>
+        <span class="text-xs text-green-500">↓ 从12道降到5道</span>
+      </div>
+      <div>
+        <div class="flex flex-wrap gap-1.5 mb-2"><span class="text-xs text-gray-400">优势:</span>{% for t in data.strength_tags %}<span class="score-pill good text-[10px]">{{ t }}</span>{% endfor %}</div>
+        <div class="flex flex-wrap gap-1.5"><span class="text-xs text-gray-400">薄弱:</span>{% for t in data.weakness_tags %}<span class="score-pill bad text-[10px]">{{ t }}</span>{% endfor %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flex items-center justify-center gap-4 mt-5">
+  <a href="/student/{{ data.student.id }}/error-book" class="btn btn-primary">📕 去攻克薄弱知识点</a>
+  <a href="/student/{{ data.student.id }}/coach" class="btn btn-outline">🤖 找Math Coach辅导</a>
+</div>
+{% endblock %}

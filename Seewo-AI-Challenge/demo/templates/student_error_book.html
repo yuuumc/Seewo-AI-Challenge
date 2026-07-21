@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}AI错题本 — {{ data.student.name }}{% endblock %}
+{% block nav %}
+  {% set sid = data.student.id %}{% set active = 'error-book' %}{% include "_nav_student.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-slide-up">
+  <div>
+    <h1 class="text-2xl font-extrabold text-gray-900">📕 AI错题本</h1>
+    <p class="text-sm text-gray-400 mt-1">AI重构错误 — 排查根因 · 串联知识链 · 分层精准练习</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="score-pill good">{{ data.closed }}/{{ data.total_errors }} 已掌握</span>
+    {% if data.total_errors - data.closed > 0 %}
+    <span class="score-pill bad">{{ data.total_errors - data.closed }} 待攻克</span>
+    {% endif %}
+  </div>
+</div>
+
+{% for item in data.error_items %}
+<div class="content-card animate-scale-in" style="animation-delay: {{ loop.index0 * 0.1 }}s;" data-aos="fade-up" data-aos-delay="{{ loop.index0 * 80 }}">
+  <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-100 mb-4">
+    <div class="flex items-center gap-3">
+      <span class="font-extrabold text-base text-gray-800">{{ item.question_id.upper() }}</span>
+      <span class="score-pill bad text-xs">✗ 错误</span>
+      <span class="text-xs text-gray-400 truncate max-w-[260px]">{{ item.stem[:60] }}…</span>
+    </div>
+    {% if item.correction_status == 'closed' %}
+    <span class="score-pill good">✅ 已掌握</span>
+    {% else %}
+    <span class="score-pill warn">⏳ 待攻克</span>
+    {% endif %}
+  </div>
+
+  <div class="grid-2 gap-6">
+    <!-- Left: Root Cause Analysis -->
+    <div>
+      <div class="text-xs font-extrabold text-red-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+        <i data-lucide="search" class="w-3.5 h-3.5"></i> AI根因分析
+      </div>
+
+      {% if item.error_analysis.error_types %}
+      <div class="flex flex-wrap gap-1.5 mb-3">
+        {% for et in item.error_analysis.error_types %}<span class="score-pill bad text-xs">{{ et }}</span>{% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="p-4 rounded-xl bg-red-50 border-l-4 border-red-500 mb-3">
+        <div class="text-xs font-extrabold text-red-700 mb-1.5">❌ 不是"粗心"</div>
+        <div class="text-sm text-red-700/80 leading-relaxed">
+          {% if "计算错误" in item.error_analysis.error_types|join(' ') %}
+          配方法步骤漏写 +a² 项——不是简单的计算失误，而是对<strong>完全平方公式展开过程的逆向操作</strong>不熟练。建议回到 (x-a)² = x²-2ax+a²，正向展开一遍，再逆向配方一遍。
+          {% elif "概念混淆" in item.error_analysis.error_types|join(' ') %}
+          对<strong>"不单调"的概念理解有偏差</strong>——你似乎认为"不单调"需要参数满足某些条件。实际上函数是否单调首先由导数本身决定，参数只是影响因素。这道是陷阱题：单调性与a无关。
+          {% elif "逻辑跳跃" in item.error_analysis.error_types|join(' ') %}
+          推理方向正确，但<strong>跳过了关键判断步骤</strong>。将f'(x)化为完全平方后，必须明确写出"因为完全平方≥0恒成立，所以导数≥0"这一步——这是从计算到结论之间的桥梁。
+          {% elif "未作答" in item.error_analysis.error_types|join(' ') %}
+          完全未作答。如果是因为不会——没关系，下面的知识链帮你从头理清。如果是时间不够——建议跟老师沟通。
+          {% else %}
+          这道题暴露的问题需要重点关注，建议对照下方知识链逐级排查。
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Knowledge Chain + Practice -->
+    <div>
+      <div class="text-xs font-extrabold text-primary-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+        <i data-lucide="git-branch" class="w-3.5 h-3.5"></i> 知识链
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        {% for k in item.knowledge_chain %}
+        <div class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all hover:shadow-sm
+                    {% if k.relation == '当前知识点' %}bg-primary-50 border-2 border-primary-200{% elif k.relation == '前置知识' %}bg-gray-50 border border-gray-100{% else %}bg-white border border-dashed border-gray-200{% endif %}">
+          <span class="text-[10px] font-extrabold text-gray-400 uppercase w-14 flex-shrink-0">{{ k.relation }}</span>
+          <span class="flex-1 font-bold text-sm text-gray-700">{{ k.name }}</span>
+          <span class="font-extrabold text-sm {% if k.mastery >= 80 %}text-green-500{% elif k.mastery >= 60 %}text-amber-500{% else %}text-red-500{% endif %}">{{ k.mastery }}%</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="mt-4 p-4 rounded-xl bg-green-50 border border-green-200">
+        <div class="text-xs font-extrabold text-green-700 mb-2 flex items-center gap-1.5">
+          <i data-lucide="layers" class="w-3.5 h-3.5"></i> 分层精准练习（自动匹配）
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <div class="text-xs px-3 py-2 bg-white rounded-lg text-gray-700 flex items-center gap-2">
+            <span class="score-pill good text-[10px]">基础</span> 配方法专项练习 ×3题
+          </div>
+          <div class="text-xs px-3 py-2 bg-white rounded-lg text-gray-700 flex items-center gap-2">
+            <span class="score-pill warn text-[10px]">提升</span> 含参函数单调性变式 ×2题
+          </div>
+          <div class="text-xs px-3 py-2 bg-white rounded-lg text-gray-700 flex items-center gap-2">
+            <span class="score-pill bad text-[10px]">挑战</span> 含参函数+不等式综合 ×1题
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if item.correction_status == 'closed' %}
+  <div class="mt-4 p-3 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700 font-bold flex items-center gap-2">
+    <i data-lucide="check-circle-2" class="w-4 h-4"></i> 已订正通过 — AI验证确认你已掌握此知识点
+  </div>
+  {% else %}
+  <div class="mt-4 flex items-center gap-3">
+    <a href="/student/{{ data.student.id }}/correction" class="btn btn-primary btn-sm">✏️ 去订正这道题</a>
+    <a href="/student/{{ data.student.id }}/coach" class="btn btn-outline btn-sm">🤖 找Math Coach求助</a>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

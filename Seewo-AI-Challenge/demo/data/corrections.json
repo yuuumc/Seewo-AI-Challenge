@@ -1,0 +1,88 @@
+{
+  "hw_001_corrections": {
+    "s02_q5": {
+      "student_id": "s02",
+      "question_id": "q5",
+      "original_answer": "f'(x)=3x²-6ax+3a²=3(x²-2ax)+3a²\n不会做了...",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "f'(x)=3x²-6ax+3a²\n=3(x²-2ax+a²)\n=3(x-a)²\n因为完全平方≥0，所以f'(x)≥0\n因此f(x)在R上单调递增。",
+          "result": "correct",
+          "feedback": "订正完全正确！你已经掌握了配方法的要领——x²-2ax+a²=(x-a)² 是关键一步。继续保持！"
+        }
+      ],
+      "status": "closed"
+    },
+    "s02_q6": {
+      "student_id": "s02",
+      "question_id": "q6",
+      "original_answer": "f'(x)=x²-2x=x(x-2)\n令f'(x)=0, x=0,x=2\nf(x)在(0,2)内f'(x)<0\n所以不单调，a需要满足...(未完成)",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "f'(x)=x²-2x=x(x-2)\nf'(x)=0→x=0,x=2\n在(0,2)上f'(x)<0\n所以在[0,2]上f(x)单调递减\n与a无关，不存在这样的a。",
+          "result": "correct",
+          "feedback": "订正正确！你这次正确识别了'陷阱题'——函数的单调性与参数a无关。这个洞察非常关键。"
+        }
+      ],
+      "status": "closed"
+    },
+    "s03_q5": {
+      "student_id": "s03",
+      "question_id": "q5",
+      "original_answer": "f'(x)=3x²-6ax+3a²=3(x-a)²\n所以单调递增",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "f'(x)=3x²-6ax+3a²\n=3(x-a)²\n因为(x-a)²≥0恒成立\n所以f'(x)≥0\n因此f(x)在R上单调递增。",
+          "result": "correct",
+          "feedback": "订正正确！补充了关键步骤'因为(x-a)²≥0恒成立'——这正是原作答中缺失的推理环节。"
+        }
+      ],
+      "status": "closed"
+    },
+    "s05_q5": {
+      "student_id": "s05",
+      "question_id": "q5",
+      "original_answer": "f'(x)=3x²-6ax+3a²=3(x²-2ax+a²)=3(x-a)²≥0\n所以f(x)单调递增。",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "f'(x)=3x²-6ax+3a²\n=3(x²-2ax+a²)\n=3(x-a)²\n由于平方项(x-a)²≥0恒成立，所以f'(x)≥0恒成立\n因此f(x)在R上单调递增。",
+          "result": "correct",
+          "feedback": "订正正确！补充了完整的推导过程，表述也严谨了。"
+        }
+      ],
+      "status": "closed"
+    },
+    "s05_q6": {
+      "student_id": "s05",
+      "question_id": "q6",
+      "original_answer": "f'(x)=x²-2x=0\nx=0,2\n在区间内导数始终为负\n所以函数单调递减，a不影响单调性。\n不存在这样的a。",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "f'(x)=x²-2x=x(x-2)\n令f'(x)=0得x=0,x=2\n当0<x<2时，x(x-2)<0，所以f'(x)<0\n故f(x)在[0,2]上单调递减\n单调性与参数a无关\n因此不存在使f(x)不单调的a。",
+          "result": "correct",
+          "feedback": "订正正确！表述比之前严谨——明确指出'在(0,2)区间内f'(x)<0'，避免了模糊表述。"
+        }
+      ],
+      "status": "closed"
+    },
+    "s03_q6": {
+      "student_id": "s03",
+      "question_id": "q6",
+      "original_answer": "不会",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "f'(x)=x²-2x\n令f'(x)=0,x=0,2\n在(0,2)上f'(x)<0\n所以f(x)在[0,2]单调递减，与a无关\n不存在这样的a。",
+          "result": "correct",
+          "feedback": "很好的进步！从之前完全不会到现在完整写出推导过程。继续加油！"
+        }
+      ],
+      "status": "closed"
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ student.name }}的作业 — 希沃智教π{% endblock %}
+{% block nav %}
+  {% set sid = student.id %}{% include "_nav_student.html" %}
+{% endblock %}
+
+{% block content %}
+<!-- Student header -->
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-slide-up">
+  <div class="flex items-center gap-4">
+    <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-extrabold text-2xl shadow-lg" style="background:{{ student.avatar_color }};">
+      {{ student.name[0] }}
+    </div>
+    <div>
+      <h1 class="text-2xl font-extrabold text-gray-900">{{ student.name }}的作业批改</h1>
+      <p class="text-sm text-gray-400 mt-1">{{ assignment.title }} · {{ student.class }} · {{ student.level }}层</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-4">
+    <div class="text-right">
+      <div class="text-3xl font-extrabold leading-none {% if percentage >= 80 %}text-green-500{% elif percentage >= 60 %}text-amber-500{% else %}text-red-500{% endif %}">{{ percentage }}%</div>
+      <div class="text-xs text-gray-400 mt-1">{{ total_score }}/{{ max_score }}分</div>
+    </div>
+    <div class="w-16 h-16 rounded-full flex items-center justify-center text-white font-extrabold text-lg shadow-lg"
+         style="background:{% if percentage >= 80 %}#10B981{% elif percentage >= 60 %}#F59E0B{% else %}#EF4444{% endif %};">
+      {{ total_score }}
+    </div>
+  </div>
+</div>
+
+<!-- Question Cards -->
+{% for qr in questions %}
+<div class="content-card" data-reveal>
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-3 border-b border-gray-100">
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="font-bold text-base text-gray-900">{{ qr.question_id.upper() }}</span>
+      {% if qr.question_type == 'choice' %}<span class="score-pill good text-xs">选择</span>
+      {% elif qr.question_type == 'fill_blank' %}<span class="score-pill warn text-xs">填空</span>
+      {% else %}<span class="score-pill text-xs" style="background:#eef1fe;color:#1d4ed8;">解答</span>
+      {% endif %}
+      <span class="text-xs text-gray-400">{{ qr.knowledge }}</span>
+    </div>
+    <div class="flex items-center gap-2">
+      {% if qr.is_correct %}
+      <span class="score-pill good">✓ 正确</span>
+      {% else %}
+      <span class="score-pill bad">✗ 错误</span>
+      {% endif %}
+      <span class="font-extrabold text-base {% if qr.is_correct %}text-green-500{% else %}text-red-500{% endif %}">{{ qr.score }}/{{ qr.max_score }}</span>
+    </div>
+  </div>
+
+  <p class="text-sm text-gray-600 mb-3 leading-relaxed">{{ qr.question_stem }}</p>
+
+  <!-- Objective Answers -->
+  {% if qr.question_type in ('choice', 'fill_blank') %}
+  <div class="p-4 rounded-xl text-sm {% if qr.is_correct %}bg-green-50{% else %}bg-red-50{% endif %}">
+    <div>
+      你的答案：<strong class="{% if not qr.is_correct %}text-red-600{% endif %}">{{ qr.student_answer or '(未作答)' }}</strong>
+      {% if not qr.is_correct %}
+      <span class="mx-1 text-gray-400">→</span>正确答案：<strong class="text-green-600">{{ qr.correct_answer }}</strong>
+      {% endif %}
+    </div>
+    {% if qr.feedback %}<div class="text-xs text-gray-500 mt-2">{{ qr.feedback }}</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Long Answer: Step-level -->
+  {% if qr.question_type == 'long_answer' and qr.step_results %}
+  <div class="mt-3">
+    <div class="text-xs font-semibold text-gray-500 mb-2">
+      你的作答：<span class="text-gray-700">{{ qr.student_answer[:80] }}{% if qr.student_answer|length > 80 %}…{% endif %}</span>
+    </div>
+    <ul class="step-list">
+      {% for step in qr.step_results %}
+      <li class="step-item {% if step.correct %}correct{% else %}wrong{% endif %}">
+        <span class="step-num">{{ step.step }}</span>
+        <div class="step-content">
+          <div class="step-text">{{ step.content }}</div>
+          <div class="step-comment">{{ step.comment }}</div>
+          {% if step.suggested_fix %}<div class="suggested-fix">💡 {{ step.suggested_fix }}</div>{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+<!-- Personalized Comment -->
+{% if comment %}
+<div class="comment-box" data-reveal>{{ comment }}</div>
+{% endif %}
+
+<!-- Action Buttons -->
+<div class="flex flex-wrap gap-3 justify-center mt-6" data-reveal>
+  <a href="/student/{{ student.id }}/correction" class="btn btn-primary"><i data-lucide="pen-line" class="w-4 h-4"></i> 提交订正</a>
+  <a href="/student/{{ student.id }}/error-book" class="btn btn-outline"><i data-lucide="book-x" class="w-4 h-4"></i> 查看错题本</a>
+  <a href="/student/{{ student.id }}/coach" class="btn btn-outline"><i data-lucide="message-circle" class="w-4 h-4"></i> 做变式题</a>
+</div>
+{% endblock %}

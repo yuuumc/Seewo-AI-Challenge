@@ -1,0 +1,101 @@
+{
+  "s02": {
+    "period": "近30天",
+    "overall_mastery": 62,
+    "change": 12,
+    "trend": "up",
+    "improvements": [
+      {"topic": "导数计算", "before": 55, "after": 78, "stars": 4},
+      {"topic": "函数定义域", "before": 80, "after": 90, "stars": 4},
+      {"topic": "三角函数基础", "before": 65, "after": 75, "stars": 3}
+    ],
+    "weaknesses": [
+      {"topic": "含参分类讨论", "mastery": 30, "stars": 1, "detail": "分类标准选择混乱"},
+      {"topic": "配方法", "mastery": 40, "stars": 2, "detail": "完全平方公式应用不熟练"}
+    ],
+    "ai_prediction": {
+      "predicted_score": 78,
+      "range": [72, 84],
+      "confidence": "中等",
+      "note": "如果你的分类讨论正确率能提升到60%，预计总分可达到90±5分"
+    },
+    "study_hours": {
+      "this_month": 28,
+      "last_month": 22,
+      "trend": "up"
+    },
+    "mistake_trend": [
+      {"week": "W1", "count": 12},
+      {"week": "W2", "count": 9},
+      {"week": "W3", "count": 7},
+      {"week": "W4", "count": 5}
+    ],
+    "strength_tags": ["导数计算", "函数定义域", "二次函数"],
+    "weakness_tags": ["含参分类讨论", "配方法", "数学语言规范"]
+  },
+  "s01": {
+    "period": "近30天",
+    "overall_mastery": 94,
+    "change": 5,
+    "trend": "up",
+    "improvements": [
+      {"topic": "导数综合应用", "before": 85, "after": 94, "stars": 5},
+      {"topic": "不等式证明", "before": 80, "after": 90, "stars": 4}
+    ],
+    "weaknesses": [
+      {"topic": "几何证明书写规范", "mastery": 70, "stars": 3, "detail": "证明过程有时省略关键步骤"}
+    ],
+    "ai_prediction": {
+      "predicted_score": 95,
+      "range": [91, 98],
+      "confidence": "高",
+      "note": "保持当前学习节奏，重点提升几何证明的书写规范性，有望冲击满分。"
+    },
+    "study_hours": {
+      "this_month": 35,
+      "last_month": 30,
+      "trend": "up"
+    },
+    "mistake_trend": [
+      {"week": "W1", "count": 3},
+      {"week": "W2", "count": 2},
+      {"week": "W3", "count": 1},
+      {"week": "W4", "count": 1}
+    ],
+    "strength_tags": ["导数计算", "函数单调性", "不等式", "二次函数"],
+    "weakness_tags": ["几何证明书写"]
+  },
+  "s05": {
+    "period": "近30天",
+    "overall_mastery": 70,
+    "change": 8,
+    "trend": "up",
+    "improvements": [
+      {"topic": "导数计算", "before": 68, "after": 80, "stars": 4},
+      {"topic": "函数定义域", "before": 72, "after": 82, "stars": 3}
+    ],
+    "weaknesses": [
+      {"topic": "数学语言规范", "mastery": 50, "stars": 2, "detail": "表述不够精确，关键步骤缺少数学语言"},
+      {"topic": "含参分类讨论", "mastery": 55, "stars": 2, "detail": "思路正确但书写跳跃过大"}
+    ],
+    "ai_prediction": {
+      "predicted_score": 82,
+      "range": [76, 88],
+      "confidence": "中高",
+      "note": "你的数学思维是好的，但书写规范是得分天花板——解决表述问题，分数至少能再提10分。"
+    },
+    "study_hours": {
+      "this_month": 25,
+      "last_month": 20,
+      "trend": "up"
+    },
+    "mistake_trend": [
+      {"week": "W1", "count": 8},
+      {"week": "W2", "count": 7},
+      {"week": "W3", "count": 5},
+      {"week": "W4", "count": 4}
+    ],
+    "strength_tags": ["导数计算", "函数定义域", "解题思路"],
+    "weakness_tags": ["数学语言规范", "含参分类讨论", "书写严谨性"]
+  }
+}

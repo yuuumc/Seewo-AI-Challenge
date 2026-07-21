@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}AI复核队列 — 希沃智教π{% endblock %}
+{% block nav %}
+  {% set active = 'review' %}{% include "_nav_teacher.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-slide-up">
+  <div>
+    <h1 class="text-2xl font-extrabold text-gray-900">🔍 AI低置信度复核队列</h1>
+    <p class="text-sm text-gray-400 mt-1">按置信度排序 — 教师仅需处理<span class="font-bold text-amber-500"> ~15% </span>的低置信度判定</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="score-pill warn">{{ queue|length }} 项待复核</span>
+    <a href="/teacher/agent-trace/hw_001" class="btn btn-outline btn-sm">🤖 Agent追踪</a>
+  </div>
+</div>
+
+{% if queue %}
+<div class="content-card animate-scale-in">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>优先级</th><th>学生</th><th>题目</th><th>步骤</th><th>AI置信度</th><th>复核原因</th><th>操作</th></tr></thead>
+      <tbody>
+        {% for item in queue %}
+        <tr>
+          <td>{% if item.urgency=='high' %}<span class="score-pill bad text-xs">🔴 紧急</span>{% else %}<span class="score-pill warn text-xs">🟡 关注</span>{% endif %}</td>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 shadow-sm" style="background:{{ item.avatar_color }};">{{ item.student_name[0] }}</div>
+              <a href="/student/{{ item.student_id }}/dashboard" class="font-bold text-sm text-primary-400 hover:text-primary-500 no-underline">{{ item.student_name }}</a>
+            </div>
+          </td>
+          <td class="font-bold">{{ item.question_id.upper() }}</td>
+          <td>步骤{{ item.step }}</td>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="progress-bar w-14"><div class="fill {% if item.confidence >= 0.8 %}good{% elif item.confidence >= 0.7 %}warning{% else %}danger{% endif %}" style="width:{{ (item.confidence*100)|int }}%;"></div></div>
+              <span class="font-extrabold text-sm {% if item.confidence >= 0.8 %}text-green-500{% elif item.confidence >= 0.7 %}text-amber-500{% else %}text-red-500{% endif %}">{{ (item.confidence*100)|int }}%</span>
+            </div>
+          </td>
+          <td class="text-xs text-gray-600 max-w-[220px]">{{ item.reason }}</td>
+          <td><a href="/student/{{ item.student_id }}/error-book" class="btn btn-outline btn-sm">查看详情</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="empty-state"><div class="icon">✅</div><h3>无需复核</h3><p>所有AI批改结果置信度均在阈值以上</p></div>
+{% endif %}
+
+<div class="mt-5 p-6 rounded-2xl bg-insight border border-indigo-200 animate-scale-in">
+  <div class="text-sm text-gray-700 leading-relaxed">
+    <strong>💡 为什么需要"AI复核队列"？</strong><br>
+    智教π区别于竞品的核心设计——AI不假装100%确定。每项判定附带置信度，低置信度结果自动入队排序。<br>
+    教师仅需处理~15%的不确定结果；每次修正反馈至模型，形成持续优化飞轮。
+  </div>
+</div>
+{% endblock %}

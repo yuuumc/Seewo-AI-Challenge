@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}课堂互动 — 希沃智教π{% endblock %}
+{% block nav %}
+  <a href="/teacher" class="nav-link"><i data-lucide="layout-dashboard"></i> 作业管理</a>
+  <a href="/classroom" class="nav-link active"><i data-lucide="presentation"></i> 课堂互动</a>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-slide-up">
+  <div><h1 class="text-2xl font-extrabold text-gray-900">🏫 课堂互动</h1><p class="text-sm text-gray-400 mt-1">教师端与学生端实时联动 — 希沃生态独特优势</p></div>
+  <span class="score-pill good">{{ data.submitted_count }}/{{ data.total_students }} 已提交</span>
+</div>
+
+<div class="bg-dark-card rounded-2xl p-8 text-center text-white mb-6 animate-scale-in">
+  <div class="text-xs text-gray-400 mb-3">📝 教师提问</div>
+  <div class="text-xl font-extrabold">{{ data.teacher_question }}</div>
+  <div class="text-xs text-gray-400 mt-3">学生端实时提交 · AI即时分析 · 白板同步展示</div>
+</div>
+
+<div class="grid-2">
+  <div class="content-card">
+    <div class="content-card-header"><span class="content-card-title">💡 解法分布（AI实时分析）</span></div>
+    {% for sol in data.solutions %}
+    <div class="p-4 mb-2 rounded-xl {% if '标准' in sol.rating %}bg-green-50 border border-green-200{% elif '正确' in sol.rating %}bg-amber-50 border border-amber-200{% else %}bg-indigo-50 border border-indigo-200{% endif %}">
+      <div class="flex items-center justify-between mb-1">
+        <div><span class="font-bold text-sm">{{ sol.method }}</span><span class="ml-2 score-pill {% if '标准' in sol.rating %}good{% elif '正确' in sol.rating %}warn{% else %}good{% endif %} text-xs" style="{% if '创意' in sol.rating %}background:#eef1fe;color:#1d4ed8;{% endif %}">{{ sol.rating }}</span></div>
+        <span class="text-xl font-extrabold text-primary-400">{{ sol.count }}人</span>
+      </div>
+      <div class="text-xs text-gray-600 p-2 bg-white rounded-lg font-mono">{{ sol.representative }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="content-card">
+    <div class="content-card-header"><span class="content-card-title">⚠️ 典型错误（AI自动识别）</span></div>
+    {% for err in data.common_errors %}
+    <div class="p-4 mb-2 rounded-xl bg-red-50 border-l-4 border-red-500">
+      <div class="font-bold text-sm text-red-700">🚫 {{ err.error }}</div>
+      <div class="text-xs text-red-600 mt-1">{{ err.count }} 名学生出现此错误</div>
+      <div class="text-xs p-2 bg-white rounded-lg mt-2 text-green-600 font-bold">✅ 正确: {{ err.correction }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="content-card mt-5 text-center">
+  <div class="content-card-header" style="justify-content:center;"><span class="content-card-title">课堂互动闭环</span></div>
+  <div class="flex flex-wrap items-center justify-center gap-2 py-2">
+    <span class="px-3 py-2 bg-indigo-50 rounded-lg font-bold text-sm text-primary-400">👩‍🏫 提问</span><span class="text-gray-300">→</span>
+    <span class="px-3 py-2 bg-amber-50 rounded-lg font-bold text-sm text-amber-600">📱 提交</span><span class="text-gray-300">→</span>
+    <span class="px-3 py-2 bg-green-50 rounded-lg font-bold text-sm text-green-600">🤖 AI分析</span><span class="text-gray-300">→</span>
+    <span class="px-3 py-2 bg-indigo-50 rounded-lg font-bold text-sm text-primary-400">🖥 白板</span><span class="text-gray-300">→</span>
+    <span class="px-3 py-2 bg-gray-100 rounded-lg font-bold text-sm text-gray-600">💬 讲评</span>
+  </div>
+</div>
+{% endblock %}

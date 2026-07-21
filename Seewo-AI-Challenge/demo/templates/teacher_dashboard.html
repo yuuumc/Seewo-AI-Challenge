@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}教师端 — 希沃智教π{% endblock %}
+{% block nav %}
+  {% set active = 'dashboard' %}{% include "_nav_teacher.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-slide-up">
+  <div>
+    <h1 class="text-2xl font-extrabold text-gray-900">{{ assignment.title }}</h1>
+    <p class="text-sm text-gray-400 mt-1">{{ assignment.subject }} · {{ assignment.grade }} · {{ assignment.questions|length }}题 · 满分50分</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <a href="/teacher/grade/hw_001" class="btn btn-primary"><i data-lucide="sparkles" class="w-4 h-4"></i> 开始AI批改</a>
+    <a href="/teacher/analytics/hw_001" class="btn btn-outline btn-sm"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> 学情分析</a>
+  </div>
+</div>
+
+<div class="stats-grid stagger mb-6">
+  <div class="stat-card"><div class="stat-value text-primary-400">5</div><div class="stat-label">提交学生数</div></div>
+  <div class="stat-card"><div class="stat-value text-green-500">100%</div><div class="stat-label">提交率</div></div>
+  <div class="stat-card"><div class="stat-value text-amber-500">~3min</div><div class="stat-label">预估AI批改耗时</div><div class="text-xs text-green-500 mt-1">vs 人工 ~2.5h</div></div>
+  <div class="stat-card"><div class="stat-value text-indigo-500">{{ assignment.knowledge_points|length }}</div><div class="stat-label">知识点标签</div></div>
+</div>
+
+<div class="content-card">
+  <div class="content-card-header"><span class="content-card-title">作业题目概览</span><span class="score-pill good">{{ assignment.knowledge_points|length }} 知识点</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>题型</th><th>题目</th><th>分值</th><th>知识点</th></tr></thead>
+      <tbody>
+        {% for q in assignment.questions %}
+        <tr>
+          <td class="font-bold text-sm">{{ q.id.upper() }}</td>
+          <td>{% if q.type=='choice' %}<span class="score-pill good text-xs">选择</span>{% elif q.type=='fill_blank' %}<span class="score-pill warn text-xs">填空</span>{% else %}<span class="score-pill good text-xs" style="background:#eef1fe;color:#1d4ed8;">解答</span>{% endif %}</td>
+          <td class="text-sm text-gray-600 max-w-[300px] truncate">{{ q.stem[:80] }}{% if q.stem|length > 80 %}…{% endif %}</td>
+          <td class="font-bold">{{ q.score }}分</td>
+          <td class="text-xs text-gray-500">{{ q.knowledge }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="content-card">
+  <div class="content-card-header"><span class="content-card-title">学生列表</span><span class="text-xs text-gray-400">已提交 {{ students|length }} 人</span></div>
+  <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+    {% for s in students %}
+    <a href="/student/{{ s.id }}/dashboard" class="flex items-center gap-3 p-4 rounded-xl bg-gray-50 hover:bg-primary-50 transition-all no-underline text-gray-800 hover:-translate-y-0.5 hover:shadow-md">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm" style="background:{{ s.avatar_color }};">{{ s.name[0] }}</div>
+      <div>
+        <div class="font-bold text-sm">{{ s.name }}</div>
+        <div class="text-xs text-gray-400">{{ s.class }} · {{ s.level }}层</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="content-card">
+  <div class="content-card-header"><span class="content-card-title">知识点覆盖</span></div>
+  <div class="flex flex-wrap gap-2">
+    {% for kp in assignment.knowledge_points %}<span class="score-pill good text-xs" style="background:#eef1fe;color:#1d4ed8;">{{ kp }}</span>{% endfor %}
+  </div>
+</div>
+{% endblock %}

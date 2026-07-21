@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}知识雷达 — {{ data.student.name }}{% endblock %}
+{% block nav %}
+  {% set sid = data.student.id %}{% include "_nav_student.html" %}
+  <a href="/student/{{ data.student.id }}/radar" class="nav-link active"><i data-lucide="target"></i> 知识雷达</a>
+{% endblock %}
+
+{% block head %}
+<style>
+  .radar-container { display: flex; justify-content: center; align-items: center; padding: 20px; }
+  .radar-svg { max-width: 420px; width: 100%; }
+  .mastery-card { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: var(--radius-sm); transition: all .15s; }
+  .mastery-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-4">
+  <div class="flex gap-4" style="align-items:center;">
+    <div style="width:48px;height:48px;border-radius:50%;background:{{ data.student.avatar_color }};display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;">{{ data.student.name[0] }}</div>
+    <div>
+      <h1 style="font-size:22px;font-weight:800;">🎯 知识点掌握雷达</h1>
+      <p class="text-muted mt-2">{{ data.student.name }} · {{ data.student.class }}</p>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- SVG Radar Chart -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">知识掌握雷达图</span></div>
+    <div class="radar-container">
+      <svg class="radar-svg" viewBox="-170 -170 340 340" xmlns="http://www.w3.org/2000/svg">
+        <!-- Grid circles -->
+        {% for level in data.svg.grid_levels %}
+        <circle cx="0" cy="0" r="{{ level.radius }}" fill="none" stroke="var(--gray-200)" stroke-width="1" />
+        <polygon points="{% for pt in level.points %}{{ pt[0] }},{{ pt[1] }} {% endfor %}" fill="none" stroke="var(--gray-200)" stroke-width="0.5" />
+        {% endfor %}
+
+        <!-- Axis lines -->
+        {% for axis in data.svg.axes %}
+        <line x1="0" y1="0" x2="{{ axis.x }}" y2="{{ axis.y }}" stroke="var(--gray-200)" stroke-width="1"/>
+        {% endfor %}
+
+        <!-- Data polygon -->
+        <polygon points="{% for pt in data.svg.data_points %}{{ pt.x }},{{ pt.y }} {% endfor %}" fill="rgba(74,108,247,0.2)" stroke="var(--primary)" stroke-width="2.5" />
+
+        <!-- Data points -->
+        {% for pt in data.svg.data_points %}
+        <circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="5" fill="var(--primary)" stroke="white" stroke-width="2"/>
+        {% endfor %}
+
+        <!-- Labels -->
+        {% for label in data.svg.labels %}
+        <text x="{{ label.x }}" y="{{ label.y }}" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="600" fill="var(--gray-700)">{{ label.text }}</text>
+        {% endfor %}
+      </svg>
+    </div>
+    <div style="text-align:center;padding-bottom:16px;">
+      <span style="font-size:12px;color:var(--gray-500);">蓝色区域越大 = 掌握越牢固 | 外层圆 = 100%</span>
+    </div>
+  </div>
+
+  <!-- Detail Cards -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">知识点详情</span></div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      {% for r in data.radar %}
+      <div class="mastery-card" style="background:{% if r.mastery >= 80 %}#F0FDF4{% elif r.mastery >= 60 %}#FFFBEB{% else %}#FFF5F5{% endif %};">
+        <div style="flex:1;">
+          <div class="flex-between" style="margin-bottom:4px;">
+            <span style="font-size:14px;font-weight:700;">{{ r.knowledge }}</span>
+            <span style="font-size:13px;font-weight:800;color:{% if r.mastery >= 80 %}var(--success){% elif r.mastery >= 60 %}var(--warning){% else %}var(--danger){% endif %};">
+              {{ r.mastery }}%
+            </span>
+          </div>
+          <div class="flex-between" style="font-size:12px;color:var(--gray-500);">
+            <span>{{ r.earned }}/{{ r.max }}分</span>
+            <span>
+              {% if r.trend == 'up' %}<span style="color:var(--success);">↑ 上升</span>
+              {% elif r.trend == 'down' %}<span style="color:var(--danger);">↓ 下滑</span>
+              {% else %}<span>→ 持平</span>
+              {% endif %}
+              <span style="margin-left:6px;">上次{{ r.previous }}%</span>
+            </span>
+          </div>
+          <div class="progress-bar mt-2">
+            <div class="fill {% if r.mastery >= 80 %}good{% elif r.mastery >= 60 %}warning{% else %}danger{% endif %}" style="width:{{ r.mastery }}%;"></div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Insights -->
+<div class="grid-2" style="margin-top:20px;">
+  {% if data.strongest %}
+  <div class="card" style="background:linear-gradient(135deg,#F0FDF4,#D1FAE5);border:1px solid #6EE7B7;">
+    <div style="font-size:13px;font-weight:700;color:#065F46;margin-bottom:6px;">💪 最强知识点</div>
+    <div style="font-size:18px;font-weight:800;color:#065F46;">{{ data.strongest.knowledge }}</div>
+    <div style="font-size:28px;font-weight:900;color:#059669;margin-top:4px;">{{ data.strongest.mastery }}%</div>
+  </div>
+  {% endif %}
+  {% if data.weakest %}
+  <div class="card" style="background:linear-gradient(135deg,#FFF5F5,#FEE2E2);border:1px solid #FCA5A5;">
+    <div style="font-size:13px;font-weight:700;color:#991B1B;margin-bottom:6px;">🎯 需强化知识点</div>
+    <div style="font-size:18px;font-weight:800;color:#991B1B;">{{ data.weakest.knowledge }}</div>
+    <div style="font-size:28px;font-weight:900;color:#DC2626;margin-top:4px;">{{ data.weakest.mastery }}%</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

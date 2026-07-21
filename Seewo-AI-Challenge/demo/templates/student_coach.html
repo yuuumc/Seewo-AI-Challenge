@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}AI助学 — {{ student.name }}{% endblock %}
+{% block nav %}
+  {% set sid = student.id %}{% set active = 'coach' %}{% include "_nav_student.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-4">
+  <div>
+    <h1 style="font-size:24px;font-weight:800;">🤖 Math Coach</h1>
+    <p class="text-muted mt-2">不是ChatGPT——而是苏格拉底式的数学教练。不会直接给你答案，而是引导你自己找到答案。</p>
+  </div>
+</div>
+
+<div class="grid-2" style="gap:20px;">
+  <!-- Scenario Selector -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">📚 辅导场景</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      {% for s in scenarios %}
+      <a href="?scenario={{ s.key }}"
+         style="padding:12px 16px;border-radius:8px;text-decoration:none;color:inherit;font-weight:600;font-size:14px;
+                {% if s.title == scenario.title %}background:var(--primary-light);color:var(--primary);border:2px solid var(--primary);
+                {% else %}background:var(--gray-50);border:2px solid transparent;{% endif %}
+                transition:all .15s;">
+        {{ s.title }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <div style="margin-top:16px;padding:14px;background:#FFFBEB;border-radius:8px;border:1px solid #FCD34D;">
+      <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px;">💡 Math Coach 的原则</div>
+      <div style="font-size:12px;color:#92400E;line-height:1.7;">
+        ① 不会直接给答案<br>
+        ② 会问"你做到哪一步了"<br>
+        ③ 会追问"这一步为什么要这样做"<br>
+        ④ 会在关键处给提示，但让学生自己得出答案<br>
+        ⑤ 最后总结思路，固化方法
+      </div>
+    </div>
+  </div>
+
+  <!-- Dialogue -->
+  <div class="card" style="max-height:520px;overflow-y:auto;">
+    <div class="card-header"><span class="card-title">💬 {{ scenario.title }}</span></div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      {% for msg in scenario.dialogue %}
+      {% if msg.role == 'student' %}
+      <div style="display:flex;justify-content:flex-end;">
+        <div style="max-width:80%;padding:10px 16px;background:var(--primary);color:white;border-radius:16px 16px 4px 16px;font-size:13px;line-height:1.6;">
+          {{ msg.text }}
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;">S</div>
+      </div>
+      {% else %}
+      <div style="display:flex;justify-content:flex-start;gap:8px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#10B981,#059669);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">C</div>
+        <div style="max-width:80%;">
+          <div style="padding:10px 16px;background:#F0FDF4;border-radius:4px 16px 16px 16px;font-size:13px;line-height:1.6;color:var(--gray-800);">
+            {{ msg.text }}
+          </div>
+          {% if msg.hint %}
+          <div style="margin-top:4px;padding:6px 12px;background:#FFFBEB;border-radius:6px;font-size:11px;color:#92400E;font-weight:600;">
+            💡 提示：{{ msg.hint }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- CTA -->
+<div class="flex items-center justify-center gap-4 mt-5">
+  <a href="/student/{{ student.id }}/correction" class="btn btn-primary btn-lg">✏️ 去订正练习</a>
+  <a href="/student/{{ student.id }}/error-book" class="btn btn-outline btn-lg">📕 查看AI错题本</a>
+</div>
+
+<!-- Bottom note -->
+<div class="content-card" style="margin-top:20px;background:linear-gradient(135deg,#1e1b4b,#312e81);color:#E0E7FF;text-align:center;">
+  <div style="font-size:14px;font-weight:700;color:white;margin-bottom:4px;">
+    🤖 Math Coach — 苏格拉底式数学辅导
+  </div>
+  <div style="font-size:12px;opacity:0.8;">
+    通过提问引导而非直接告知，帮助学生建立真正的数学思维。
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Agent协作追踪 — 希沃智教π{% endblock %}
+{% block nav %}
+  {% set active = 'agent' %}{% include "_nav_teacher.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-slide-up">
+  <div>
+    <h1 class="text-2xl font-extrabold text-gray-900">🤖 多Agent协作追踪</h1>
+    <p class="text-sm text-gray-400 mt-1">每个学生由多个AI Agent协同批改 — 决策轨迹透明可追溯</p>
+  </div>
+</div>
+
+<div class="bg-dark-card rounded-2xl p-6 text-white text-center mb-6 animate-scale-in">
+  <div class="text-xs text-gray-400 mb-3 tracking-widest uppercase">Agent Collaboration Pipeline</div>
+  <div class="flex flex-wrap items-center justify-center gap-1.5 text-xs font-semibold">
+    <span class="px-3 py-2 bg-white/15 rounded-lg">Orchestrator</span><span class="text-white/30">→</span>
+    <span class="px-3 py-2 bg-primary-400/40 rounded-lg">OCR</span><span class="text-white/30">→</span>
+    <span class="px-3 py-2 bg-indigo-400/40 rounded-lg">Math</span><span class="text-white/30">→</span>
+    <span class="px-3 py-2 bg-emerald-400/40 rounded-lg">KG</span><span class="text-white/30">→</span>
+    <span class="px-3 py-2 bg-amber-400/40 rounded-lg">Diagnosis</span><span class="text-white/30">→</span>
+    <span class="px-3 py-2 bg-red-400/40 rounded-lg">Strategy</span><span class="text-white/30">→</span>
+    <span class="px-3 py-2 bg-cyan-400/40 rounded-lg">Lesson</span><span class="text-white/30">→</span>
+    <span class="px-3 py-2 bg-pink-400/40 rounded-lg">Exercise</span>
+  </div>
+</div>
+
+{% for t in traces %}
+<div class="content-card mb-4 animate-scale-in" style="animation-delay:{{ loop.index0 * 0.08 }}s;">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+    <a href="/student/{{ t.student.id }}/dashboard" class="flex items-center gap-3 no-underline text-gray-900 hover:text-primary-400 transition-colors">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm" style="background:{{ t.student.avatar_color }};">{{ t.student.name[0] }}</div>
+      <div>
+        <div class="font-bold text-base">{{ t.student.name }}</div>
+        <div class="text-xs text-gray-400">参与Agent: {{ t.agents|join(' → ') }}</div>
+      </div>
+    </a>
+    <div class="flex items-center gap-2">
+      {% if t.review_needed %}<span class="score-pill warn text-xs">🔍 需复核</span>{% else %}<span class="score-pill good text-xs">✅ 自信通过</span>{% endif %}
+      <span class="text-xs text-gray-400">均置信度 {{ (t.confidence|sum / t.confidence|length * 100)|int if t.confidence else 0 }}%</span>
+    </div>
+  </div>
+
+  <div class="p-3 rounded-xl bg-gray-50 text-xs text-gray-600 mb-3"><strong>决策轨迹：</strong>{{ t.trace }}</div>
+
+  {% if t.confidence %}
+  <div class="flex flex-wrap items-center gap-3">
+    <span class="text-xs font-bold text-gray-500">逐题置信度:</span>
+    {% for c in t.confidence %}
+    <div class="flex items-center gap-1.5">
+      <span class="text-xs text-gray-400">Q{{ loop.index }}</span>
+      <div class="progress-bar w-10"><div class="fill {% if c >= 0.9 %}good{% elif c >= 0.7 %}warning{% else %}danger{% endif %}" style="width:{{ (c*100)|int }}%;"></div></div>
+      <span class="text-xs font-extrabold {% if c >= 0.9 %}text-green-500{% elif c >= 0.7 %}text-amber-500{% else %}text-red-500{% endif %}">{{ (c*100)|int }}%</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if t.review_items %}
+  <details class="mt-3"><summary class="cursor-pointer text-xs font-bold text-amber-600 hover:text-amber-700 transition-colors">⚠ {{ t.review_items|length }} 项需教师复核</summary>
+    {% for item in t.review_items %}
+    <div class="mt-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs">
+      <strong>{{ item.question.upper() }}</strong> 步骤{{ item.step }} · 置信度 <span class="font-extrabold text-red-500">{{ (item.confidence*100)|int }}%</span><br>
+      <span class="text-gray-600">{{ item.reason }}</span>
+    </div>
+    {% endfor %}
+  </details>
+  {% endif %}
+</div>
+{% endfor %}
+
+<div class="grid-2 mt-5">
+  <div class="p-6 rounded-2xl bg-red-50 border border-red-200" data-aos="fade-right">
+    <div class="font-extrabold text-red-700 mb-2">✗ 传统方案（单一大模型）</div>
+    <div class="text-xs text-red-600/80 leading-relaxed">一张照片→一个Prompt→一个结果<br>OCR+推理+评语混在一次调用<br>出错时无法定位环节<br>无置信度分层，教师需全量复核</div>
+  </div>
+  <div class="p-6 rounded-2xl bg-green-50 border border-green-200" data-aos="fade-left">
+    <div class="font-extrabold text-green-700 mb-2">✓ 智教π（多Agent协作）</div>
+    <div class="text-xs text-green-600/80 leading-relaxed">8个专业Agent各司其职<br>每个环节独立决策+置信度透明<br>完整决策轨迹可追溯<br>教师仅复核~15%低置信度结果</div>
+  </div>
+</div>
+{% endblock %}

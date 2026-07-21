@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}学习首页 — {{ data.student.name }}{% endblock %}
+{% block nav %}
+  {% set sid = data.student.id %}{% set active = 'dashboard' %}{% include "_nav_student.html" %}
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="flex flex-wrap items-center gap-4 justify-between mb-6 animate-fade-in">
+  <div class="flex items-center gap-4">
+    <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-extrabold text-2xl shadow-lg" style="background:{{ data.student.avatar_color }};">
+      {{ data.student.name[0] }}
+    </div>
+    <div>
+      <h1 class="text-2xl font-extrabold text-gray-900">下午好，{{ data.student.name }}</h1>
+      <p class="text-sm text-gray-400 mt-1">
+        <span class="inline-flex items-center gap-1"><span class="pulse-dot"></span> 连续学习 {{ data.quick_stats.study_streak }} 天</span>
+        <span class="mx-2">·</span>
+        本周进步 <span class="font-bold {% if data.quick_stats.weekly_progress >= 0 %}text-green-500{% else %}text-red-500{% endif %}">{{ data.quick_stats.weekly_progress }}%</span>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="stats-grid stagger">
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="0">
+    <div class="stat-value text-amber-500">{{ data.quick_stats.today_pending }}</div>
+    <div class="stat-label">今日待完成</div>
+  </div>
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="80">
+    <div class="stat-value text-red-500">{{ data.quick_stats.corrections_due }}</div>
+    <div class="stat-label">待订正</div>
+  </div>
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="160">
+    <div class="stat-value text-green-500">🔥 {{ data.quick_stats.study_streak }}</div>
+    <div class="stat-label">连续学习天数</div>
+  </div>
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="240">
+    <div class="stat-value text-primary-400">{{ data.quick_stats.weekly_progress }}%</div>
+    <div class="stat-label">本周进步</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Today's Tasks -->
+  <div class="content-card" data-aos="fade-right">
+    <div class="content-card-header">
+      <span class="content-card-title">今日待完成</span>
+      <span class="score-pill warn">{{ data.today_tasks|length }} 项</span>
+    </div>
+    {% for task in data.today_tasks %}
+    <div class="p-4 mb-2 rounded-xl transition-all hover:shadow-sm border-l-4 {% if task.status == 'urgent' %}border-red-500 bg-red-50/50{% else %}border-primary-400 bg-gray-50{% endif %}">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div class="font-bold text-sm">{{ task.task }}</div>
+          <div class="text-xs text-gray-400 mt-1">{{ task.subject }} · {{ task.deadline }}</div>
+        </div>
+        <span class="score-pill {% if task.status == 'urgent' %}bad{% else %}good{% endif %}">
+          {% if task.status == 'urgent' %}优先{% else %}待完成{% endif %}
+        </span>
+      </div>
+    </div>
+    {% endfor %}
+    <a href="/student/{{ data.student.id }}" class="block mt-3 p-4 rounded-xl bg-gradient-to-r from-primary-50 to-indigo-50 border border-primary-100 hover:shadow-md transition-all no-underline group">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="font-bold text-sm text-primary-600 flex items-center gap-1.5">
+            <i data-lucide="file-check-2" class="w-4 h-4"></i> 查看本次作业批改详情
+          </div>
+          <div class="text-xs text-gray-500 mt-1">步骤级批改反馈 · AI 个性化点评</div>
+        </div>
+        <i data-lucide="chevron-right" class="w-5 h-5 text-primary-400 group-hover:translate-x-1 transition-transform"></i>
+      </div>
+    </a>
+  </div>
+
+  <!-- AI Suggestions -->
+  <div class="content-card" data-aos="fade-left">
+    <div class="content-card-header"><span class="content-card-title">今日学习建议</span></div>
+    {% for sug in data.ai_suggestions %}
+    <div class="p-4 mb-2 rounded-xl bg-gradient-to-r from-primary-50 to-indigo-50 border border-primary-100">
+      <div class="font-bold text-sm text-primary-600">{{ sug.topic }}</div>
+      <div class="text-xs text-gray-500 mt-1 mb-3">{{ sug.reason }}</div>
+      <a href="{% if '复习' in sug.action or '微课' in sug.action %}/student/{{ data.student.id }}/coach{% elif '诊断' in sug.action %}/student/{{ data.student.id }}/error-book{% elif '挑战' in sug.action %}/student/{{ data.student.id }}/coach{% else %}/student/{{ data.student.id }}/error-book{% endif %}"
+         class="inline-flex items-center gap-1 px-4 py-1.5 bg-primary-400 text-white text-xs font-bold rounded-lg no-underline hover:bg-primary-500 transition-colors">
+        {{ sug.action }} <i data-lucide="arrow-right" class="w-3 h-3"></i>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- AI Reminder -->
+<div class="mt-5 p-6 rounded-2xl bg-danger-soft border border-red-200 animate-scale-in" data-aos="zoom-in">
+  <div class="flex gap-4 items-start">
+    <div class="text-3xl flex-shrink-0"><i data-lucide="alert-triangle" class="w-8 h-8 text-red-500"></i></div>
+    <div class="flex-1">
+      <div class="font-extrabold text-base text-red-800 mb-2">{{ data.ai_reminder.title }}</div>
+      <div class="text-sm text-red-700/80 leading-relaxed mb-3">{{ data.ai_reminder.detail }}</div>
+      <div class="text-sm font-bold text-red-800 mb-3">{{ data.ai_reminder.suggestion }}</div>
+      <a href="/student/{{ data.student.id }}/error-book"
+         class="inline-flex items-center gap-2 px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-sm no-underline transition-all hover:-translate-y-0.5 shadow-lg shadow-red-500/30">
+        <i data-lucide="target" class="w-4 h-4"></i> 开始专项训练（20分钟）
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

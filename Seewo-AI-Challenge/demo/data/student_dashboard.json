@@ -1,0 +1,111 @@
+{
+  "s01": {
+    "today_tasks": [
+      {"subject": "数学", "task": "完成「导数与极值」课后练习", "deadline": "今晚 22:00", "status": "pending"},
+      {"subject": "数学", "task": "订正昨日作业第5题", "deadline": "明早 8:00", "status": "urgent"}
+    ],
+    "ai_suggestions": [
+      {"topic": "函数单调性", "reason": "本次作业正确率40%，建议优先复习", "action": "去复习"},
+      {"topic": "含参分类讨论", "reason": "连续3次在'分类标准选择'上失分", "action": "专项训练"}
+    ],
+    "ai_reminder": {
+      "title": "你已经连续3次在「分类讨论」上失分",
+      "detail": "这不是粗心——你在'什么时候按a分类、什么时候按Δ分类'的决策逻辑上存在系统性盲区。",
+      "suggestion": "AI已为你准备一套专项训练（3道阶梯题），预计耗时20分钟。",
+      "streak": 3
+    },
+    "quick_stats": {
+      "today_pending": 2,
+      "corrections_due": 1,
+      "study_streak": 7,
+      "weekly_progress": 12
+    }
+  },
+  "s02": {
+    "today_tasks": [
+      {"subject": "数学", "task": "完成「函数图像」预习", "deadline": "明天课前", "status": "pending"},
+      {"subject": "数学", "task": "订正作业Q5、Q6", "deadline": "今晚 22:00", "status": "urgent"}
+    ],
+    "ai_suggestions": [
+      {"topic": "配方法", "reason": "Q5配方法步骤出错，这是代数基本技能", "action": "去看微课"},
+      {"topic": "函数单调性定义", "reason": "对'不单调'概念理解有偏差", "action": "重新学习"}
+    ],
+    "ai_reminder": {
+      "title": "配方法出现系统性错误",
+      "detail": "你在Q5中将 x²-2ax 配方时漏写了 +a² 项——这不是一次粗心，建议回到完全平方公式的展开过程重新理解。",
+      "suggestion": "AI已为你推荐一段3分钟的配方法微课视频和2道基础巩固题。",
+      "streak": 2
+    },
+    "quick_stats": {
+      "today_pending": 2,
+      "corrections_due": 2,
+      "study_streak": 5,
+      "weekly_progress": 8
+    }
+  },
+  "s03": {
+    "today_tasks": [
+      {"subject": "数学", "task": "完成「函数单调性」课后作业", "deadline": "今晚 22:00", "status": "pending"},
+      {"subject": "数学", "task": "补做上次作业第6题（未作答）", "deadline": "明早 8:00", "status": "urgent"}
+    ],
+    "ai_suggestions": [
+      {"topic": "导数求法基础", "reason": "你的求导计算基本正确，但后续分析经常中断", "action": "做诊断测试"},
+      {"topic": "答题规范", "reason": "解答过程跳跃过大，缺少关键中间步骤", "action": "看示范"}
+    ],
+    "ai_reminder": {
+      "title": "你上次作业有1道题完全未作答",
+      "detail": "Q6未作答。如果是因为不会，没关系——我们从头开始；如果是因为时间不够，可以申请延时提交。",
+      "suggestion": "建议告诉老师你的困难——老师可以根据你的情况调整作业量。",
+      "streak": 1
+    },
+    "quick_stats": {
+      "today_pending": 2,
+      "corrections_due": 2,
+      "study_streak": 3,
+      "weekly_progress": -3
+    }
+  },
+  "s04": {
+    "today_tasks": [
+      {"subject": "数学", "task": "预习「不等式恒成立问题」", "deadline": "明天课前", "status": "pending"}
+    ],
+    "ai_suggestions": [
+      {"topic": "不等式恒成立问题", "reason": "你的单调性掌握扎实，可以挑战更高阶的内容了", "action": "去预习"},
+      {"topic": "极值综合应用", "reason": "你已经能识别陷阱题，试试更复杂的综合题", "action": "挑战一下"}
+    ],
+    "ai_reminder": {
+      "title": "你已经连续7天保持学习",
+      "detail": "全对且能识别陷阱题——你的数学思维很扎实。建议开始挑战更高阶的综合题，不要停留在舒适区。",
+      "suggestion": "AI为你准备了一套「导数综合应用」拓展题（3道挑战级），预计耗时30分钟。",
+      "streak": 7
+    },
+    "quick_stats": {
+      "today_pending": 1,
+      "corrections_due": 0,
+      "study_streak": 7,
+      "weekly_progress": 5
+    }
+  },
+  "s05": {
+    "today_tasks": [
+      {"subject": "数学", "task": "订正Q5、Q6的表述问题", "deadline": "今晚 22:00", "status": "pending"},
+      {"subject": "数学", "task": "完成「函数图像」预习", "deadline": "明天课前", "status": "pending"}
+    ],
+    "ai_suggestions": [
+      {"topic": "数学语言规范性", "reason": "你的思路正确但表述不够严谨，这是冲击高分的关键", "action": "专项训练"},
+      {"topic": "导数符号判断", "reason": "基本功扎实，可以尝试更复杂的分类讨论", "action": "挑战进阶"}
+    ],
+    "ai_reminder": {
+      "title": "你已经连续2次在「表述严谨性」上失分",
+      "detail": "你的解题思路基本正确，但数学语言的精确性需要加强——比如'导数始终为负'应该说'在(0,2)区间内f'(x)<0'。这在高考中是得分点也是失分点。",
+      "suggestion": "AI已为你整理5个常见表述不严谨的范例及其规范写法，对照检查只需10分钟。",
+      "streak": 2
+    },
+    "quick_stats": {
+      "today_pending": 2,
+      "corrections_due": 2,
+      "study_streak": 5,
+      "weekly_progress": 8
+    }
+  }
+}

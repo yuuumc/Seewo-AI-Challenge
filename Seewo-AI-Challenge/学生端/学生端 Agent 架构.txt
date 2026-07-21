@@ -1,0 +1,20 @@
+Student Learning Agent
+
+↓
+
+Learning Path Agent
+
+↓
+
+AI Tutor Agent
+
+↓
+
+Motivation Agent
+
+| Agent                  | 功能                      |
+| ---------------------- | ----------------------- |
+| Student Learning Agent | 管理学习记录、作业、课堂数据          |
+| Learning Path Agent    | 根据知识薄弱点规划学习路径           |
+| AI Tutor Agent         | 苏格拉底式引导答题，不直接给答案        |
+| Motivation Agent       | 根据学习情况生成目标、鼓励、提醒和连续学习机制 |

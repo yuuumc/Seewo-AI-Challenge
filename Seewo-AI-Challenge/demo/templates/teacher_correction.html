@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}订正闭环看板 — 希沃智教π{% endblock %}
+{% block nav %}
+  {% set active = 'correction' %}{% include "_nav_teacher.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-4">
+  <div>
+    <h1 style="font-size:24px;font-weight:800;">🔄 订正闭环追踪</h1>
+    <p class="text-muted mt-2">追踪每个学生从"收到反馈→提交订正→AI验证→闭环完成"的完整链路</p>
+  </div>
+  <div class="flex gap-2">
+    <span class="tag tag-success">{{ stats.total_closed }}/{{ stats.total_mistakes }} 已闭环</span>
+    <span class="tag tag-warning">{{ stats.pending }} 待订正</span>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--primary);">{{ stats.class_loop_rate }}%</div>
+    <div class="stat-label">班级订正闭环率</div>
+    <div class="stat-change up">目标 ≥ 60%</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--success);">{{ stats.total_closed }}</div>
+    <div class="stat-label">已闭环错题</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--warning);">{{ stats.pending }}</div>
+    <div class="stat-label">待订正错题</div>
+    <div class="stat-change {% if stats.pending > 3 %}down{% endif %}">
+      {% if stats.pending > 3 %}⚠ 需关注{% else %}正常{% endif %}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:var(--info);">{{ stats.total_mistakes }}</div>
+    <div class="stat-label">错题总数</div>
+  </div>
+</div>
+
+<!-- Per-Student Loop Status -->
+<div class="card">
+  <div class="card-header"><span class="card-title">👥 学生订正进度</span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;">
+    {% for ps in stats.per_student %}
+    {% set s = students|selectattr('id','equalto',ps.student_id)|list|first %}
+    <div style="padding:16px;background:var(--gray-50);border-radius:var(--radius-sm);border-left:4px solid {% if ps.loop_rate >= 80 %}var(--success){% elif ps.loop_rate >= 50 %}var(--warning){% else %}var(--danger){% endif %};">
+      <div class="flex-between" style="margin-bottom:10px;">
+        <div class="flex gap-2" style="align-items:center;">
+          <div style="width:36px;height:36px;border-radius:50%;background:{{ s.avatar_color if s else '#999' }};display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;">{{ s.name[0] if s else '?' }}</div>
+          <div>
+            <div style="font-weight:700;font-size:14px;">{{ s.name if s else '?' }}</div>
+            <div style="font-size:11px;color:var(--gray-500);">{{ ps.closed }}/{{ ps.total_mistakes }} 已闭环</div>
+          </div>
+        </div>
+        <div style="font-size:22px;font-weight:800;color:{% if ps.loop_rate >= 80 %}var(--success){% elif ps.loop_rate >= 50 %}var(--warning){% else %}var(--danger){% endif %};">
+          {{ ps.loop_rate }}%
+        </div>
+      </div>
+      <div class="progress-bar" style="margin-bottom:8px;">
+        <div class="fill {% if ps.loop_rate >= 80 %}good{% elif ps.loop_rate >= 50 %}warning{% else %}danger{% endif %}" style="width:{{ ps.loop_rate }}%;"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        {% for d in ps.details %}
+        <a href="/student/{{ ps.student_id }}/correction#{{ d.question_id }}"
+           style="font-size:11px;padding:3px 8px;border-radius:12px;text-decoration:none;font-weight:500;
+                  {% if d.correction_status == 'closed' %}background:#D1FAE5;color:#065F46;
+                  {% else %}background:#FEF3C7;color:#92400E;{% endif %}">
+          {{ d.question_id }} {% if d.correction_status == 'closed' %}✓{% else %}⏳{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

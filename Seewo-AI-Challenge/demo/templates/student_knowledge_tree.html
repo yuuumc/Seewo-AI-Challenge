@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+{% block title %}知识树 — {{ data.student.name }}{% endblock %}
+{% block nav %}
+  {% set sid = data.student.id %}{% set active = 'knowledge-tree' %}{% include "_nav_student.html" %}
+{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Knowledge Tree ───────────────────────────────────────── */
+  .kt-wrap { padding: 8px 0 0; }
+
+  /* Toolbar */
+  .kt-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 14px; margin-bottom: 18px;
+  }
+  .kt-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .kt-stat {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600;
+    background: #fff; border: 1px solid var(--line);
+  }
+  .kt-stat .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .kt-focus-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 9999px; font-size: 12.5px; font-weight: 600;
+    background: #fff; border: 1px solid var(--line); color: var(--gray-600);
+    cursor: pointer; transition: all .2s;
+  }
+  .kt-focus-btn:hover { border-color: var(--gray-300); }
+  .kt-focus-btn.active { background: #1f2937; color: #fff; border-color: #1f2937; }
+  .kt-focus-btn svg { width: 14px; height: 14px; }
+
+  /* Tree canvas */
+  .kt-canvas {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(74,108,247,.04), transparent 55%),
+      #fcfcfd;
+    border: 1px solid var(--line); border-radius: var(--r-xl);
+    padding: 40px 16px 28px; overflow-x: auto; position: relative;
+  }
+  .kt-canvas::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: radial-gradient(circle, #eef0f4 1px, transparent 1px);
+    background-size: 22px 22px; opacity: .6; border-radius: var(--r-xl);
+  }
+
+  /* Classic CSS tree — ul/li with border connectors */
+  .kt-tree, .kt-tree ul { list-style: none; margin: 0; padding: 0; }
+  .kt-tree { text-align: center; position: relative; z-index: 1; }
+  .kt-tree ul {
+    display: flex; justify-content: center;
+    padding-top: 28px; position: relative;
+  }
+  .kt-tree ul::before {
+    content: ''; position: absolute; top: 0; left: 50%;
+    width: 2px; height: 28px; background: #d1d5db;
+  }
+  .kt-tree li {
+    position: relative; padding: 28px 10px 0; list-style: none;
+  }
+  .kt-tree li::before,
+  .kt-tree li::after {
+    content: ''; position: absolute; top: 0;
+    width: 50%; height: 28px;
+  }
+  .kt-tree li::before {
+    right: 50%; border-top: 2px solid #d1d5db;
+  }
+  .kt-tree li::after {
+    left: 50%; border-top: 2px solid #d1d5db; border-left: 2px solid #d1d5db;
+  }
+  .kt-tree li:only-child::after,
+  .kt-tree li:only-child::before { display: none; }
+  .kt-tree li:only-child { padding-top: 28px; }
+  .kt-tree > li:first-child::before,
+  .kt-tree > li:first-child::after { display: none; }
+  .kt-tree li:first-child::before { border-top: 0; }
+  .kt-tree li:last-child::after { border-top: 0; }
+  .kt-tree li:last-child::before {
+    border-top: 2px solid #d1d5db; border-right: 2px solid #d1d5db;
+    border-top-right-radius: 8px;
+  }
+  .kt-tree li:first-child::after { border-top-left-radius: 8px; }
+
+  /* Node */
+  .kt-node {
+    display: inline-flex; flex-direction: column; align-items: center; gap: 7px;
+    cursor: pointer; position: relative; padding: 6px;
+    border-radius: var(--r-md); transition: transform .25s cubic-bezier(.2,.7,.3,1), filter .3s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .kt-node:hover { transform: translateY(-3px); }
+  .kt-node.is-selected { transform: translateY(-3px); }
+  .kt-node.is-selected .kt-ring-card { box-shadow: 0 0 0 3px rgba(74,108,247,.25), var(--shadow-md); }
+
+  /* Focus-weak mode: dim mastered nodes */
+  .kt-canvas.focus-weak .kt-node[data-level="good"] { filter: grayscale(.7) opacity(.35); }
+  .kt-canvas.focus-weak .kt-node[data-level="good"]:hover { filter: grayscale(0) opacity(1); }
+
+  /* Ring card */
+  .kt-ring-card {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; background: #fff;
+    box-shadow: var(--shadow-sm); transition: box-shadow .25s;
+  }
+  .kt-node[data-level="good"]  .kt-ring-card { background: #f0fdf4; }
+  .kt-node[data-level="mid"]   .kt-ring-card { background: #fffbeb; }
+  .kt-node[data-level="weak"]  .kt-ring-card { background: #fef2f2; }
+  .kt-node:hover .kt-ring-card { box-shadow: var(--shadow-md); }
+
+  .kt-ring { display: block; }
+  .kt-ring-bg { stroke: #e5e7eb; }
+  .kt-ring-fg { transition: stroke-dashoffset 1s cubic-bezier(.2,.7,.3,1); stroke-linecap: round; }
+  .kt-pct {
+    position: absolute; font-weight: 800; letter-spacing: -.02em;
+    line-height: 1; pointer-events: none;
+  }
+  .kt-name {
+    font-size: 13px; font-weight: 600; color: var(--gray-700);
+    max-width: 92px; line-height: 1.3; text-align: center;
+    transition: color .2s;
+  }
+  .kt-node[data-level="weak"] .kt-name { color: #b91c1c; font-weight: 700; }
+  .kt-node:hover .kt-name { color: var(--gray-900); }
+
+  /* Weak pulse */
+  .kt-weak-flag {
+    position: absolute; top: -2px; right: -2px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #ef4444; border: 2px solid #fff;
+    box-shadow: 0 0 0 0 rgba(239,68,68,.5);
+    animation: ktPulse 2s infinite;
+  }
+  @keyframes ktPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(239,68,68,.5); }
+    70%  { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+    100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+  }
+
+  /* Root node — larger, distinct */
+  .kt-node.is-root .kt-ring-card { box-shadow: var(--shadow-lg); }
+  .kt-node.is-root .kt-name { font-size: 15px; font-weight: 800; color: var(--gray-900); }
+
+  /* Detail panel */
+  .kt-detail {
+    margin-top: 20px; background: #fff;
+    border: 1px solid var(--line); border-radius: var(--r-lg);
+    overflow: hidden; transition: opacity .3s;
+  }
+  .kt-detail.is-empty { display: none; }
+  .kt-detail-head {
+    display: flex; align-items: center; gap: 16px;
+    padding: 20px 24px; border-bottom: 1px solid var(--line);
+  }
+  .kt-detail-ring { position: relative; flex-shrink: 0; }
+  .kt-detail-title { font-size: 18px; font-weight: 800; color: var(--gray-900); }
+  .kt-detail-sub { font-size: 13px; color: var(--gray-400); margin-top: 3px; }
+  .kt-detail-body { padding: 20px 24px; }
+  .kt-detail-weak {
+    background: linear-gradient(135deg,#fef2f2,#fee2e2);
+    border: 1px solid #fecaca; border-radius: var(--r-md);
+    padding: 14px 18px; font-size: 13.5px; line-height: 1.7; color: #991b1b;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .kt-detail-weak svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; }
+  .kt-children-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 10px; margin-top: 14px; }
+  .kt-child-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 14px; border-radius: var(--r-sm); background: var(--gray-50);
+    font-size: 13px;
+  }
+  .kt-child-row .kt-mini-bar { width: 48px; height: 5px; border-radius: 3px; background: #e5e7eb; overflow: hidden; }
+  .kt-child-row .kt-mini-bar .f { height: 100%; border-radius: 3px; }
+
+  @media (max-width: 768px) {
+    .kt-canvas { padding: 28px 8px 20px; }
+    .kt-tree li { padding: 28px 5px 0; }
+    .kt-name { font-size: 12px; max-width: 72px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="kt-toolbar">
+  <div>
+    <h1 class="text-2xl font-extrabold text-gray-900 flex items-center gap-2.5">
+      <i data-lucide="git-fork" class="w-6 h-6 text-primary-400"></i> 知识树
+    </h1>
+    <p class="text-sm text-gray-400 mt-1.5">颜色即掌握度 — 圆环越满越绿，代表越稳固；红色脉冲标记薄弱节点。</p>
+  </div>
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="kt-stats" id="ktStats"></div>
+    <button class="kt-focus-btn" id="ktFocusBtn">
+      <i data-lucide="zap"></i> 高亮薄弱
+    </button>
+  </div>
+</div>
+
+<!-- Tree canvas -->
+<div class="kt-canvas" id="ktCanvas">
+  {# Recursive macro for child nodes: mastery ring + CSS tree connectors #}
+  {% macro render_node_recursive(children) %}
+    <ul>
+      {% for child in children %}
+      <li>
+        {% set level = 'good' if child.mastery >= 80 else ('mid' if child.mastery >= 60 else 'weak') %}
+        {% set stroke = '#10b981' if level == 'good' else ('#f59e0b' if level == 'mid' else '#ef4444') %}
+        {% set text_color = '#047857' if level == 'good' else ('#b45309' if level == 'mid' else '#b91c1c') %}
+        {% set r = 24 %}
+        {% set circ = (2 * 3.14159 * r) | round(2) %}
+        {% set offset = (circ * (1 - child.mastery / 100)) | round(2) %}
+        <div class="kt-node"
+             data-level="{{ level }}"
+             data-mastery="{{ child.mastery }}"
+             data-name="{{ child.name }}"
+             data-stroke="{{ stroke }}"
+             data-circ="{{ circ }}"
+             data-offset="{{ offset }}"
+             data-weak="{{ child.weakness_detail or '' }}"
+             data-has-children="{{ '1' if child.children else '0' }}"
+             {% if child.children %}data-children='{{ child.children | tojson }}'{% endif %}>
+          <div class="kt-ring-card" style="width:{{ r*2+16 }}px;height:{{ r*2+16 }}px;">
+            <svg class="kt-ring" width="{{ r*2+16 }}" height="{{ r*2+16 }}" viewBox="0 0 {{ r*2+16 }} {{ r*2+16 }}">
+              <circle class="kt-ring-bg" cx="{{ r+8 }}" cy="{{ r+8 }}" r="{{ r }}" fill="none" stroke-width="5"/>
+              <circle class="kt-ring-fg" cx="{{ r+8 }}" cy="{{ r+8 }}" r="{{ r }}" fill="none"
+                      stroke="{{ stroke }}" stroke-width="5"
+                      stroke-dasharray="{{ circ }}"
+                      stroke-dashoffset="{{ offset }}"
+                      transform="rotate(-90 {{ r+8 }} {{ r+8 }})"/>
+            </svg>
+            <span class="kt-pct" style="font-size:14px;color:{{ text_color }};">{{ child.mastery }}%</span>
+            {% if level == 'weak' %}<span class="kt-weak-flag"></span>{% endif %}
+          </div>
+          <span class="kt-name">{{ child.name }}</span>
+        </div>
+        {% if child.children %}
+        {{ render_node_recursive(child.children) }}
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  {% endmacro %}
+
+  <div class="kt-tree">
+    {# Render root #}
+    {% set root = data.tree %}
+    {% set level = 'good' if root.mastery >= 80 else ('mid' if root.mastery >= 60 else 'weak') %}
+    {% set stroke = '#10b981' if level == 'good' else ('#f59e0b' if level == 'mid' else '#ef4444') %}
+    {% set text_color = '#047857' if level == 'good' else ('#b45309' if level == 'mid' else '#b91c1c') %}
+    {% set r = 34 %}
+    {% set circ = (2 * 3.14159 * r) | round(2) %}
+    {% set offset = (circ * (1 - root.mastery / 100)) | round(2) %}
+    <ul>
+      <li>
+        <div class="kt-node is-root"
+             data-level="{{ level }}"
+             data-mastery="{{ root.mastery }}"
+             data-name="{{ root.name }}"
+             data-stroke="{{ stroke }}"
+             data-circ="{{ circ }}"
+             data-offset="{{ offset }}"
+             data-weak="{{ root.weakness_detail or '' }}"
+             data-has-children="1"
+             data-children='{{ root.children | tojson }}'>
+          <div class="kt-ring-card" style="width:{{ r*2+18 }}px;height:{{ r*2+18 }}px;">
+            <svg class="kt-ring" width="{{ r*2+18 }}" height="{{ r*2+18 }}" viewBox="0 0 {{ r*2+18 }} {{ r*2+18 }}">
+              <circle class="kt-ring-bg" cx="{{ r+9 }}" cy="{{ r+9 }}" r="{{ r }}" fill="none" stroke-width="6"/>
+              <circle class="kt-ring-fg" cx="{{ r+9 }}" cy="{{ r+9 }}" r="{{ r }}" fill="none"
+                      stroke="{{ stroke }}" stroke-width="6"
+                      stroke-dasharray="{{ circ }}"
+                      stroke-dashoffset="{{ offset }}"
+                      transform="rotate(-90 {{ r+9 }} {{ r+9 }})"/>
+            </svg>
+            <span class="kt-pct" style="font-size:20px;color:{{ text_color }};">{{ root.mastery }}%</span>
+          </div>
+          <span class="kt-name">{{ root.name }}</span>
+        </div>
+        {{ render_node_recursive(root.children) }}
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- Detail panel -->
+<div class="kt-detail is-empty" id="ktDetail">
+  <div class="kt-detail-head">
+    <div class="kt-detail-ring" id="ktDetailRing"></div>
+    <div class="flex-1 min-w-0">
+      <div class="kt-detail-title" id="ktDetailTitle"></div>
+      <div class="kt-detail-sub" id="ktDetailSub"></div>
+    </div>
+    <a href="/student/{{ data.student.id }}/error-book" class="btn btn-primary btn-sm" id="ktDetailCta">
+      <i data-lucide="book-x" class="w-4 h-4"></i> 查看相关错题
+    </a>
+  </div>
+  <div class="kt-detail-body" id="ktDetailBody"></div>
+</div>
+
+<!-- Tips -->
+<div class="content-card" style="background:linear-gradient(135deg,#eef1fe,#e0e7ff);border:1px solid #c7d2fe;">
+  <div class="flex gap-3 items-start text-sm" style="color:var(--gray-700);line-height:1.8;">
+    <i data-lucide="lightbulb" class="w-5 h-5 text-primary-400 flex-shrink-0 mt-0.5"></i>
+    <div>
+      <strong>如何使用知识树</strong><br>
+      每个知识点都有前置依赖与后置延伸。圆环颜色代表掌握度：<strong>绿=稳固</strong>、<strong>黄=一般</strong>、<strong>红=薄弱</strong>（带脉冲标记）。<br>
+      点击任意节点查看详情与薄弱诊断；开启「高亮薄弱」可聚焦需要优先攻克的节点。
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var canvas = document.getElementById('ktCanvas');
+  var nodes = canvas.querySelectorAll('.kt-node');
+  var statsEl = document.getElementById('ktStats');
+  var focusBtn = document.getElementById('ktFocusBtn');
+  var detail = document.getElementById('ktDetail');
+  var detailRing = document.getElementById('ktDetailRing');
+  var detailTitle = document.getElementById('ktDetailTitle');
+  var detailSub = document.getElementById('ktDetailSub');
+  var detailBody = document.getElementById('ktDetailBody');
+
+  // ── Compute stats from DOM ──
+  var good = 0, mid = 0, weak = 0;
+  nodes.forEach(function (n) {
+    var lv = n.getAttribute('data-level');
+    if (lv === 'good') good++; else if (lv === 'mid') mid++; else weak++;
+  });
+  statsEl.innerHTML =
+    '<span class="kt-stat"><span class="dot" style="background:#10b981"></span>掌握 ' + good + '</span>' +
+    '<span class="kt-stat"><span class="dot" style="background:#f59e0b"></span>一般 ' + mid + '</span>' +
+    '<span class="kt-stat"><span class="dot" style="background:#ef4444"></span>薄弱 ' + weak + '</span>' +
+    '<span class="kt-stat" style="color:var(--gray-400)"><i data-lucide="nodes" style="width:13px;height:13px"></i>共 ' + nodes.length + ' 节点</span>';
+  lucide.createIcons();
+
+  // ── Focus weak toggle ──
+  focusBtn.addEventListener('click', function () {
+    canvas.classList.toggle('focus-weak');
+    focusBtn.classList.toggle('active');
+    var active = focusBtn.classList.contains('active');
+    focusBtn.innerHTML = active
+      ? '<i data-lucide="zap-off"></i> 取消高亮'
+      : '<i data-lucide="zap"></i> 高亮薄弱';
+    lucide.createIcons();
+  });
+
+  // ── Node click → detail panel ──
+  function levelMeta(m) {
+    if (m >= 80) return { label: '已掌握', color: '#10b981', bg: '#f0fdf4', textColor: '#047857' };
+    if (m >= 60) return { label: '一般', color: '#f59e0b', bg: '#fffbeb', textColor: '#b45309' };
+    return { label: '薄弱', color: '#ef4444', bg: '#fef2f2', textColor: '#b91c1c' };
+  }
+
+  function renderDetailRing(m) {
+    var meta = levelMeta(m);
+    var r = 32, circ = 2 * Math.PI * r, offset = circ * (1 - m / 100);
+    detailRing.innerHTML =
+      '<svg width="80" height="80" viewBox="0 0 80 80">' +
+        '<circle cx="40" cy="40" r="' + r + '" fill="none" stroke="#e5e7eb" stroke-width="6"/>' +
+        '<circle cx="40" cy="40" r="' + r + '" fill="none" stroke="' + meta.color + '" stroke-width="6" ' +
+          'stroke-dasharray="' + circ.toFixed(2) + '" stroke-dashoffset="' + offset.toFixed(2) + '" ' +
+          'stroke-linecap="round" transform="rotate(-90 40 40)"/>' +
+        '<text x="40" y="46" text-anchor="middle" font-size="18" font-weight="800" fill="' + meta.textColor + '">' + m + '%</text>' +
+      '</svg>';
+  }
+
+  nodes.forEach(function (n) {
+    n.addEventListener('click', function () {
+      var name = n.getAttribute('data-name');
+      var mastery = parseInt(n.getAttribute('data-mastery'), 10);
+      var weak = n.getAttribute('data-weak');
+      var hasChildren = n.getAttribute('data-has-children') === '1';
+      var children = [];
+      try { children = JSON.parse(n.getAttribute('data-children') || '[]'); } catch (e) {}
+
+      // Selected state
+      nodes.forEach(function (x) { x.classList.remove('is-selected'); });
+      n.classList.add('is-selected');
+
+      var meta = levelMeta(mastery);
+      renderDetailRing(mastery);
+      detailTitle.textContent = name;
+      detailSub.textContent = '掌握度 ' + mastery + '% · 状态：' + meta.label;
+      detail.classList.remove('is-empty');
+
+      var html = '';
+      if (weak) {
+        html += '<div class="kt-detail-weak"><i data-lucide="alert-triangle"></i><span>' + weak + '</span></div>';
+      }
+      if (hasChildren && children.length) {
+        html += '<div class="text-xs font-bold text-gray-400 uppercase tracking-wide mt-4 mb-1">子知识点掌握</div>';
+        html += '<div class="kt-children-grid">';
+        children.forEach(function (c) {
+          var cm = levelMeta(c.mastery);
+          html +=
+            '<div class="kt-child-row">' +
+              '<span class="font-medium text-gray-700 truncate">' + c.name + '</span>' +
+              '<span class="flex items-center gap-2">' +
+                '<span class="kt-mini-bar"><span class="f" style="width:' + c.mastery + '%;background:' + cm.color + '"></span></span>' +
+                '<span class="font-bold text-xs" style="color:' + cm.textColor + '">' + c.mastery + '%</span>' +
+              '</span>' +
+            '</div>';
+        });
+        html += '</div>';
+      }
+      if (!weak && !hasChildren) {
+        html += '<div class="text-sm text-gray-400">该知识点为叶子节点，暂无子项与薄弱诊断。</div>';
+      }
+      detailBody.innerHTML = html;
+      lucide.createIcons();
+      detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  });
+})();
+</script>
+{% endblock %}

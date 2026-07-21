@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}AI批改结果 — 希沃智教π{% endblock %}
+{% block nav %}
+  {% set active = 'grade' %}{% include "_nav_teacher.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-slide-up">
+  <div>
+    <h1 class="text-2xl font-extrabold text-gray-900">✍️ AI批改结果</h1>
+    <p class="text-sm text-gray-400 mt-1">{{ assignment.title }} · {{ results|length }}名学生 · 满分50分</p>
+  </div>
+  <div class="flex items-center gap-3">
+    <span class="score-pill good"><span class="pulse-dot"></span> AI批改完成</span>
+    <a href="/teacher/analytics/hw_001" class="btn btn-outline btn-sm">📊 学情分析</a>
+  </div>
+</div>
+
+<!-- Class Summary -->
+<div class="stats-grid stagger mb-6">
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="0">
+    <div class="stat-value text-primary-400">
+      {% set avg = (results|sum(attribute='total_score') / results|length)|round(1) if results else 0 %}{{ avg }}
+    </div>
+    <div class="stat-label">班级平均分 <span class="text-xs text-gray-300">/50</span></div>
+  </div>
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="80">
+    <div class="stat-value text-green-500">{{ results|map(attribute='total_score')|max if results else 0 }}</div>
+    <div class="stat-label">最高分</div>
+  </div>
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="160">
+    <div class="stat-value text-amber-500">2</div>
+    <div class="stat-label">需教师复核</div>
+    <div class="text-xs text-amber-600 mt-1">AI 低置信度项</div>
+  </div>
+  <div class="stat-card" data-aos="fade-up" data-aos-delay="240">
+    <div class="stat-value text-indigo-500">~35min</div>
+    <div class="stat-label">预估总耗时</div>
+    <div class="text-xs text-green-500 mt-1">vs 人工 ~2.5h</div>
+  </div>
+</div>
+
+<!-- Per Student -->
+{% for r in results %}
+<div class="content-card animate-scale-in" id="student-{{ r.student.id }}" style="animation-delay: {{ loop.index0 * 0.08 }}s;" data-aos="fade-up" data-aos-delay="{{ loop.index0 * 50 }}">
+  <!-- Student Header -->
+  <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-gray-100 mb-4">
+    <a href="/student/{{ r.student.id }}/dashboard" class="flex items-center gap-4 no-underline text-gray-900 hover:text-primary-400 transition-colors">
+      <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white font-extrabold text-lg shadow-md" style="background:{{ r.student.avatar_color }};">
+        {{ r.student.name[0] }}
+      </div>
+      <div>
+        <div class="font-bold text-base">{{ r.student.name }}</div>
+        <div class="text-xs text-gray-400">{{ r.student.class }} · {{ r.student.level }}层</div>
+      </div>
+    </a>
+    <div class="flex items-center gap-4">
+      <div class="text-right">
+        <div class="text-2xl font-extrabold {% if r.percentage >= 80 %}text-green-500{% elif r.percentage >= 60 %}text-amber-500{% else %}text-red-500{% endif %}">{{ r.percentage }}%</div>
+        <div class="text-xs text-gray-400">{{ r.total_score }}/{{ r.max_score }}分</div>
+      </div>
+      <a href="/student/{{ r.student.id }}" class="btn btn-outline btn-sm no-underline" title="查看该学生作业批改详情">
+        <i data-lucide="external-link" class="w-4 h-4"></i> 作业详情
+      </a>
+    </div>
+  </div>
+
+  <!-- Questions -->
+  {% for qr in r.questions %}
+  <div class="py-3 border-b border-gray-50 last:border-0">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-sm text-gray-800">{{ qr.question_id.upper() }}</span>
+        <span class="text-xs text-gray-400 truncate max-w-[200px]">{{ qr.question_stem[:50] }}…</span>
+        {% if qr.question_type == 'choice' %}<span class="score-pill good text-xs">选择</span>
+        {% elif qr.question_type == 'fill_blank' %}<span class="score-pill warn text-xs">填空</span>
+        {% else %}<span class="score-pill good text-xs" style="background:#eef1fe;color:#1d4ed8;">解答</span>
+        {% endif %}
+        <span class="text-xs text-gray-300">{{ qr.knowledge }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        {% if qr.is_correct %}
+        <span class="score-pill good">✓ {{ qr.score }}/{{ qr.max_score }}</span>
+        {% else %}
+        <span class="score-pill bad">✗ {{ qr.score }}/{{ qr.max_score }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if qr.question_type in ('choice', 'fill_blank') %}
+    <div class="text-xs text-gray-500 ml-1">
+      作答：<span class="font-bold {% if not qr.is_correct %}text-red-500{% endif %}">{{ qr.student_answer or '(未作答)' }}</span>
+      {% if not qr.is_correct %}<span class="mx-1">→</span>正确答案：<span class="font-bold text-green-500">{{ qr.correct_answer }}</span>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if qr.question_type == 'long_answer' and qr.step_results %}
+    <details class="mt-2" {% if not qr.is_correct %}open{% endif %}>
+      <summary class="cursor-pointer text-xs font-bold text-gray-600 hover:text-primary-400 transition-colors ml-1">
+        步骤级分析（共{{ qr.step_results|length }}步）
+        {% if qr.error_types %}
+        <span class="ml-2">
+          {% for et in qr.error_types %}<span class="score-pill bad text-xs">{{ et }}</span>{% endfor %}
+        </span>
+        {% endif %}
+      </summary>
+      <ul class="step-list mt-2">
+        {% for step in qr.step_results %}
+        <li class="step-item {% if step.correct %}correct{% else %}wrong{% endif %}" style="animation-delay: {{ loop.index0 * 0.05 }}s;">
+          <span class="step-badge {% if step.correct %}step-correct{% else %}step-wrong{% endif %}">{{ step.step }}</span>
+          <div class="step-content">
+            <div class="step-text">{{ step.content }}</div>
+            <div class="step-comment">{{ step.comment }}</div>
+            {% if step.suggested_fix %}<div class="suggested-fix">💡 {{ step.suggested_fix }}</div>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% if r.comment %}
+  <div class="comment-box mt-3">{{ r.comment }}</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

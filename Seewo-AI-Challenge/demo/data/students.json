@@ -1,0 +1,9 @@
+{
+  "students": [
+    {"id": "s01", "name": "林小川", "class": "高二(3)班", "level": "A", "avatar_color": "#4A90D9"},
+    {"id": "s02", "name": "陈雨桐", "class": "高二(3)班", "level": "B", "avatar_color": "#7B68EE"},
+    {"id": "s03", "name": "王浩然", "class": "高二(3)班", "level": "C", "avatar_color": "#E67E22"},
+    {"id": "s04", "name": "赵思远", "class": "高二(3)班", "level": "A", "avatar_color": "#2ECC71"},
+    {"id": "s05", "name": "刘雨涵", "class": "高二(3)班", "level": "B", "avatar_color": "#E74C3C"}
+  ]
+}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}学生端 — 希沃智教π{% endblock %}
+{% block nav %}
+  <a href="/student" class="nav-link active"><i data-lucide="users"></i> 学生列表</a>
+{% endblock %}
+
+{% block content %}
+<h1 style="font-size:24px;font-weight:800;margin-bottom:4px;">🎓 选择学生查看学习端</h1>
+<p class="text-muted mb-4">点击进入学生的完整学习端——首页、AI错题本、知识树、AI助学、成长报告</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;">
+  {% for s in students %}
+  <a href="/student/{{ s.id }}/dashboard"
+     style="background:white;border-radius:var(--radius);padding:28px 24px;box-shadow:var(--shadow);text-decoration:none;color:inherit;transition:all .2s;display:block;"
+     onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='var(--shadow-lg)';"
+     onmouseout="this.style.transform='';this.style.boxShadow='var(--shadow)';">
+    <div style="text-align:center;">
+      <div style="width:64px;height:64px;border-radius:50%;background:{{ s.avatar_color }};display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:24px;margin:0 auto 12px;">
+        {{ s.name[0] }}
+      </div>
+      <h3 style="font-size:17px;font-weight:700;margin-bottom:4px;">{{ s.name }}</h3>
+      <p style="font-size:13px;color:var(--gray-500);">{{ s.class }} · {{ s.level }}层</p>
+      <div style="margin-top:16px;padding:10px 16px;background:var(--primary-light);border-radius:8px;font-size:13px;color:var(--primary);font-weight:600;">
+        进入学习端 →
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

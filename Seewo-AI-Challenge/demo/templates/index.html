@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}希沃智教π — AI智能作业批改系统{% endblock %}
+{% block nav %}
+  <a href="/teacher" class="nav-link">教师端</a>
+  <a href="/student/s02/dashboard" class="nav-link">学生端</a>
+  <a href="/classroom" class="nav-link">课堂联动</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══ Full-bleed Hero ═══ -->
+<section class="hero" id="hero">
+  <div class="hero-media" style="background-image:url('/static/img/hero.jpg');"></div>
+  <div class="hero-overlay"></div>
+
+  <div class="hero-inner">
+    <div class="max-w-2xl">
+      <span class="hero-eyebrow" style="animation:slideUp .6s cubic-bezier(.2,.7,.3,1) both;">
+        <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-300 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-300"></span></span>
+        Multi-Agent AI Grading
+      </span>
+
+      <h1 class="hero-title" style="animation:slideUp .7s cubic-bezier(.2,.7,.3,1) .08s both;">
+        每个学生<br>都值得被<span class="accent">认真对待</span>
+      </h1>
+
+      <p class="hero-sub" style="animation:slideUp .7s cubic-bezier(.2,.7,.3,1) .18s both;">
+        多Agent协作完成一次批改 · 步骤级错因诊断 · 苏格拉底式辅导<br>
+        拍照即批改 · 批改即分析 · 分析即推送
+      </p>
+
+      <div class="hero-cta-row" style="animation:slideUp .7s cubic-bezier(.2,.7,.3,1) .28s both;">
+        <a href="/teacher" class="inline-flex items-center gap-2 px-7 py-3.5 bg-primary-400 hover:bg-primary-500 text-white font-bold rounded-xl shadow-lg shadow-primary-400/40 hover:shadow-primary-400/60 transition-all hover:-translate-y-0.5 text-base no-underline">
+          <i data-lucide="graduation-cap" class="w-5 h-5"></i> 教师端演示
+        </a>
+        <a href="/student/s02/dashboard" class="inline-flex items-center gap-2 px-7 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/25 backdrop-blur-sm transition-all hover:-translate-y-0.5 text-base no-underline">
+          <i data-lucide="user" class="w-5 h-5"></i> 学生端演示
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <a href="#architecture" class="hero-scroll-cue no-underline">
+    <span class="mouse"></span>
+    <span>scroll</span>
+  </a>
+</section>
+
+<!-- ═══ Section wrapper (constrained) ═══ -->
+<div class="max-w-5xl mx-auto">
+
+  <!-- ── Support: Multi-Agent Architecture ── -->
+  <section id="architecture" class="py-20">
+    <div class="max-w-2xl mb-10" data-reveal>
+      <div class="text-xs font-bold tracking-widest uppercase text-primary-400 mb-3">Multi-Agent Architecture</div>
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight leading-tight">8 个专业 Agent<br>协作完成一次批改</h2>
+      <p class="text-gray-500 mt-4 leading-relaxed">从 OCR 识别到策略生成，每个决策都可追溯。Orchestrator 统一调度，让批改既快又透明。</p>
+    </div>
+
+    <div class="bg-dark-card rounded-2xl p-8 sm:p-10 shadow-xl" data-reveal="scale">
+      <div class="agent-flow mb-7">
+        <span class="agent-node" style="background:rgba(255,255,255,.18);">Orchestrator</span>
+        <span class="agent-arrow">→</span>
+        <span class="agent-node" style="background:rgba(74,108,247,.32);">OCR</span>
+        <span class="agent-arrow">→</span>
+        <span class="agent-node" style="background:rgba(99,102,241,.32);">Math</span>
+        <span class="agent-arrow">→</span>
+        <span class="agent-node" style="background:rgba(16,185,129,.32);">KG</span>
+        <span class="agent-arrow">→</span>
+        <span class="agent-node" style="background:rgba(245,158,11,.32);">Diagnosis</span>
+        <span class="agent-arrow">→</span>
+        <span class="agent-node" style="background:rgba(239,68,68,.32);">Strategy</span>
+        <span class="agent-arrow">→</span>
+        <span class="agent-node" style="background:rgba(34,211,238,.32);">Lesson</span>
+        <span class="agent-arrow">→</span>
+        <span class="agent-node" style="background:rgba(236,72,153,.32);">Exercise</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/10 rounded-xl overflow-hidden">
+        <div class="bg-white/5 px-4 py-5 text-center">
+          <div class="text-2xl font-extrabold text-white">8</div>
+          <div class="text-xs text-gray-400 mt-1">专业 Agent</div>
+        </div>
+        <div class="bg-white/5 px-4 py-5 text-center">
+          <div class="text-2xl font-extrabold text-white">~15%</div>
+          <div class="text-xs text-gray-400 mt-1">仅需教师复核</div>
+        </div>
+        <div class="bg-white/5 px-4 py-5 text-center">
+          <div class="text-2xl font-extrabold text-white">~3min</div>
+          <div class="text-xs text-gray-400 mt-1">AI 批改耗时</div>
+        </div>
+        <div class="bg-white/5 px-4 py-5 text-center">
+          <div class="text-2xl font-extrabold text-white">100%</div>
+          <div class="text-xs text-gray-400 mt-1">决策可追溯</div>
+        </div>
+      </div>
+      <a href="/teacher/agent-trace/hw_001" class="inline-flex items-center gap-1.5 mt-6 text-sm font-bold text-indigo-200 hover:text-white transition-colors no-underline">
+        查看 Agent 决策轨迹 <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </a>
+    </div>
+  </section>
+
+  <!-- ── Detail: Capabilities (cardless feature rows) ── -->
+  <section class="pb-20">
+    <div class="max-w-2xl mb-8" data-reveal>
+      <div class="text-xs font-bold tracking-widest uppercase text-primary-400 mb-3">Capabilities</div>
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight leading-tight">从批改到成长，<br>每一步都看得见</h2>
+    </div>
+
+    <div data-reveal>
+      <a href="/teacher/review/hw_001" class="feature-row">
+        <div class="feature-icon"><i data-lucide="search-check" class="w-6 h-6"></i></div>
+        <div>
+          <div class="feature-title">AI 置信度复核</div>
+          <div class="feature-desc">低置信度项自动汇入复核队列，教师仅需处理约 15% 的边界案例。</div>
+        </div>
+        <i data-lucide="arrow-up-right" class="feature-arrow w-5 h-5"></i>
+      </a>
+
+      <a href="/teacher/correction-loop/hw_001" class="feature-row">
+        <div class="feature-icon" style="background:#f0fdf4;color:#10b981;"><i data-lucide="repeat-2" class="w-6 h-6"></i></div>
+        <div>
+          <div class="feature-title">订正闭环追踪</div>
+          <div class="feature-desc">错题 → 变式 → 重做 → 验证，每一步状态可视化，闭环可量化。</div>
+        </div>
+        <i data-lucide="arrow-up-right" class="feature-arrow w-5 h-5"></i>
+      </a>
+
+      <a href="/teacher/agent-trace/hw_001" class="feature-row">
+        <div class="feature-icon" style="background:#faf5ff;color:#a855f7;"><i data-lucide="bot" class="w-6 h-6"></i></div>
+        <div>
+          <div class="feature-title">多 Agent 决策追踪</div>
+          <div class="feature-desc">每一次批改的推理链路完整留痕，教学决策有据可依。</div>
+        </div>
+        <i data-lucide="arrow-up-right" class="feature-arrow w-5 h-5"></i>
+      </a>
+
+      <a href="/student/s02/knowledge-tree" class="feature-row">
+        <div class="feature-icon" style="background:#fffbeb;color:#f59e0b;"><i data-lucide="git-branch" class="w-6 h-6"></i></div>
+        <div>
+          <div class="feature-title">知识树 · 掌握度可视化</div>
+          <div class="feature-desc">以颜色映射知识点掌握程度，薄弱节点一目了然。</div>
+        </div>
+        <i data-lucide="arrow-up-right" class="feature-arrow w-5 h-5"></i>
+      </a>
+
+      <a href="/student/s02/coach" class="feature-row">
+        <div class="feature-icon" style="background:#eef2ff;color:#6366f1;"><i data-lucide="message-circle-question" class="w-6 h-6"></i></div>
+        <div>
+          <div class="feature-title">苏格拉底式 AI 辅导</div>
+          <div class="feature-desc">不给答案，只问问题——引导学生自己想通卡点。</div>
+        </div>
+        <i data-lucide="arrow-up-right" class="feature-arrow w-5 h-5"></i>
+      </a>
+
+      <a href="/student/s02/growth" class="feature-row">
+        <div class="feature-icon" style="background:#ecfeff;color:#0891b2;"><i data-lucide="trending-up" class="w-6 h-6"></i></div>
+        <div>
+          <div class="feature-title">成长报告与 AI 预测</div>
+          <div class="feature-desc">学习轨迹、优势区间与下一阶段预测，一份报告说清。</div>
+        </div>
+        <i data-lucide="arrow-up-right" class="feature-arrow w-5 h-5"></i>
+      </a>
+    </div>
+  </section>
+
+  <!-- ── Final CTA ── -->
+  <section class="pb-20">
+    <div class="cta-band" data-reveal="scale">
+      <div class="relative z-10 max-w-xl">
+        <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">现在就开始<br>一次完整的 AI 批改</h2>
+        <p class="text-indigo-100/80 mt-4 leading-relaxed">从拍照提交到成长报告，全流程可演示。无需注册，点击即用。</p>
+        <div class="flex flex-wrap gap-3 mt-7">
+          <a href="/teacher/grade/hw_001" class="inline-flex items-center gap-2 px-7 py-3.5 bg-white text-indigo-700 font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 text-base no-underline">
+            <i data-lucide="play" class="w-5 h-5"></i> 进入教师端
+          </a>
+          <a href="/student/s02/dashboard" class="inline-flex items-center gap-2 px-7 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/25 transition-all hover:-translate-y-0.5 text-base no-underline">
+            <i data-lucide="user" class="w-5 h-5"></i> 进入学生端
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

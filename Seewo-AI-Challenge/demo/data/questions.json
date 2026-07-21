@@ -1,0 +1,74 @@
+{
+  "hw_001": {
+    "id": "hw_001",
+    "title": "函数单调性与导数 · 课后作业",
+    "subject": "数学",
+    "grade": "高二",
+    "knowledge_points": ["导数的计算", "利用导数判断函数单调性", "含参函数分类讨论"],
+    "questions": [
+      {
+        "id": "q1",
+        "type": "choice",
+        "stem": "函数 f(x) = x³ - 3x 的单调递增区间是？",
+        "options": ["A. (-∞, -1)", "B. (-1, 1)", "C. (1, +∞)", "D. (-∞, -1) 和 (1, +∞)"],
+        "answer": "D",
+        "score": 5,
+        "knowledge": "利用导数判断函数单调性"
+      },
+      {
+        "id": "q2",
+        "type": "choice",
+        "stem": "已知 f'(x) > 0 对任意 x∈R 恒成立，则 f(x) 在 R 上？",
+        "options": ["A. 单调递增", "B. 单调递减", "C. 有最大值", "D. 无法确定"],
+        "answer": "A",
+        "score": 5,
+        "knowledge": "导数的几何意义"
+      },
+      {
+        "id": "q3",
+        "type": "fill_blank",
+        "stem": "函数 f(x) = 2x³ - 9x² + 12x 的极小值点为 x = ___",
+        "answer": "2",
+        "score": 5,
+        "knowledge": "利用导数求极值"
+      },
+      {
+        "id": "q4",
+        "type": "fill_blank",
+        "stem": "若 f(x) = x² + ax + 1 在区间 [2, +∞) 上单调递增，则 a 的最小值为 ___",
+        "answer": "-4",
+        "score": 5,
+        "knowledge": "含参函数单调性"
+      },
+      {
+        "id": "q5",
+        "type": "long_answer",
+        "stem": "讨论函数 f(x) = x³ - 3ax² + 3a²x (a∈R) 的单调性。",
+        "answer": "解：f'(x)=3x²-6ax+3a²=3(x-a)²≥0，\n故f(x)在R上单调递增。",
+        "score": 15,
+        "knowledge": "含参函数分类讨论",
+        "steps": [
+          {"step": 1, "content": "求导：f'(x) = 3x² - 6ax + 3a²", "score": 4},
+          {"step": 2, "content": "化简：f'(x) = 3(x² - 2ax + a²) = 3(x-a)²", "score": 4},
+          {"step": 3, "content": "判断：由(x-a)²≥0得f'(x)≥0恒成立", "score": 4},
+          {"step": 4, "content": "结论：f(x)在R上单调递增", "score": 3}
+        ]
+      },
+      {
+        "id": "q6",
+        "type": "long_answer",
+        "stem": "已知函数 f(x) = x³/3 - x² + a，若 f(x) 在区间 [0, 2] 上不单调，求实数 a 的取值范围。",
+        "answer": "解：f'(x)=x²-2x=x(x-2)，\n令f'(x)=0得x=0或x=2，\n在(0,2)内f'(x)<0，故f(x)在[0,2]上单调递减，一定单调。\n所以不存在这样的a使f(x)不单调。\n（此题考查学生对「不单调」含义的理解。）",
+        "score": 15,
+        "knowledge": "利用导数判断函数单调性",
+        "steps": [
+          {"step": 1, "content": "求导：f'(x) = x² - 2x", "score": 3},
+          {"step": 2, "content": "令f'(x)=0，解得x=0或x=2", "score": 3},
+          {"step": 3, "content": "分析：在(0,2)上f'(x)=x(x-2)<0，f(x)单调递减", "score": 4},
+          {"step": 4, "content": "判断：f(x)在[0,2]上单调，与参数a无关", "score": 3},
+          {"step": 5, "content": "结论：不存在满足条件的a", "score": 2}
+        ]
+      }
+    ]
+  }
+}

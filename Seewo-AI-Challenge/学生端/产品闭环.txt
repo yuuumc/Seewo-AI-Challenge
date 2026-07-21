@@ -1,0 +1,24 @@
+教师布置作业
+      │
+      ▼
+学生完成
+      │
+      ▼
+OCR Agent
+      │
+      ▼
+Math Reasoning Agent
+      │
+      ▼
+Knowledge Graph Agent
+      │
+      ├──────────────┐
+      ▼              ▼
+教师端          学生端
+课堂诊断      AI错题本
+课堂讲评      AI Tutor
+教学策略      学习路径
+      │              │
+      └──────┬───────┘
+             ▼
+      下一次课堂

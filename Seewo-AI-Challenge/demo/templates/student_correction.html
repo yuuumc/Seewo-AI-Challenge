@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}订正练习 — {{ student.name }}{% endblock %}
+{% block nav %}
+  {% set sid = student.id %}{% include "_nav_student.html" %}
+  <a href="/student/{{ student.id }}/correction" class="nav-link active"><i data-lucide="pen-line"></i> 订正练习</a>
+{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-4">
+  <div class="flex gap-4" style="align-items:center;">
+    <div style="width:48px;height:48px;border-radius:50%;background:{{ student.avatar_color }};display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;">{{ student.name[0] }}</div>
+    <div>
+      <h1 style="font-size:22px;font-weight:800;">订正闭环</h1>
+      <p class="text-muted mt-2">{{ student.name }} · {{ student.class }} · {{ corr_status.closed }}/{{ corr_status.total_mistakes }} 已闭环</p>
+    </div>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:28px;font-weight:800;color:{% if corr_status.loop_rate >= 80 %}var(--success){% elif corr_status.loop_rate >= 50 %}var(--warning){% else %}var(--danger){% endif %};">
+      {{ corr_status.loop_rate }}%
+    </div>
+    <div style="font-size:12px;color:var(--gray-500);">订正闭环率</div>
+  </div>
+</div>
+
+<!-- Loop visualization -->
+<div class="card" style="text-align:center;padding:28px;">
+  <div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">
+    <div style="padding:16px 24px;background:var(--primary-soft);border-radius:12px;font-weight:700;color:var(--primary);">
+      批改
+    </div>
+    <div style="font-size:24px;color:var(--gray-400);">→</div>
+    <div style="padding:16px 24px;background:#FEF3C7;border-radius:12px;font-weight:700;color:#92400E;">
+      学生查看
+    </div>
+    <div style="font-size:24px;color:var(--gray-400);">→</div>
+    <div style="padding:16px 24px;background:{% if corr_status.loop_rate >= 80 %}#D1FAE5{% else %}#FEF3C7{% endif %};border-radius:12px;font-weight:700;color:{% if corr_status.loop_rate >= 80 %}#065F46{% else %}#92400E{% endif %};">
+      提交订正
+    </div>
+    <div style="font-size:24px;color:var(--gray-400);">→</div>
+    <div style="padding:16px 24px;background:{% if corr_status.loop_rate >= 80 %}#D1FAE5{% else %}var(--gray-100){% endif %};border-radius:12px;font-weight:700;color:{% if corr_status.loop_rate >= 80 %}#065F46{% else %}var(--gray-500){% endif %};">
+      AI验证 → 闭环
+    </div>
+  </div>
+</div>
+
+<!-- Wrong Questions with Correction & Variants -->
+{% for wq in wrong_questions %}
+<div class="card" style="margin-top:20px;">
+  <div class="card-header">
+    <div class="flex gap-4" style="align-items:center;">
+      <strong style="font-size:16px;">{{ wq.id.upper() }}</strong>
+      <span class="tag tag-success">解答题</span>
+      <span style="font-size:13px;color:var(--gray-500);">{{ wq.knowledge }}</span>
+    </div>
+    {% set detail = corr_status.details|selectattr('question_id', 'equalto', wq.id)|list|first %}
+    {% if detail and detail.correction_status == 'closed' %}
+    <span class="tag tag-success">已闭环</span>
+    {% else %}
+    <span class="tag tag-warning">待订正</span>
+    {% endif %}
+  </div>
+
+  <p style="font-size:14px;color:var(--gray-700);margin-bottom:12px;">{{ wq.stem[:100] }}{% if wq.stem|length > 100 %}…{% endif %}</p>
+
+  <div class="grid-2" style="gap:20px;">
+    <!-- Your answer -->
+    <div style="padding:14px;background:#FFF5F5;border-radius:8px;border-left:4px solid var(--danger);">
+      <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:6px;">你的原作答</div>
+      <div style="font-size:13px;color:var(--gray-700);white-space:pre-wrap;">{{ wq.your_answer[:200] }}</div>
+    </div>
+
+    <!-- Correction or input -->
+    <div style="padding:14px;background:#F0FDF4;border-radius:8px;border-left:4px solid var(--success);">
+      <div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:6px;">
+        {% if detail and detail.correction_status == 'closed' %}AI验证通过 — 订正如下{% else %}在此订正{% endif %}
+      </div>
+      {% if detail and detail.correction_status == 'closed' %}
+      <div style="font-size:13px;color:var(--gray-700);white-space:pre-wrap;background:white;padding:10px;border-radius:6px;">
+        {{ detail.attempts }}次尝试后通过 — 已闭环
+      </div>
+      {% else %}
+      <textarea id="corr-{{ wq.id }}" data-qid="{{ wq.id }}" style="width:100%;height:100px;border:1px dashed var(--gray-300);border-radius:6px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="请在此重新作答…"></textarea>
+      <button class="btn btn-primary btn-sm mt-2" onclick="submitCorrection('{{ wq.id }}', this)" style="border:none;cursor:pointer;">
+        <i data-lucide="send" class="w-4 h-4"></i> 提交订正 → AI验证
+      </button>
+      <div id="result-{{ wq.id }}" class="mt-2"></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Variant Questions -->
+  {% if variants[wq.id] %}
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);">
+    <div style="font-size:14px;font-weight:700;color:var(--gray-800);margin-bottom:10px;">
+        变式题巩固（错1练3 — 分层推送 · {{ student.level }}层）
+      </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">
+      {% for v in variants[wq.id].variants %}
+      <div style="padding:14px;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-200);">
+        <div class="flex-between" style="margin-bottom:6px;">
+          <span class="tag {% if v.difficulty == 'A' %}tag-info{% elif v.difficulty == 'B' %}tag-warning{% else %}tag-danger{% endif %}">
+            {{ v.difficulty_label }}
+          </span>
+          <span style="font-size:11px;color:var(--gray-400);">{{ v.id }}</span>
+        </div>
+        <div style="font-size:13px;color:var(--gray-700);margin-bottom:8px;line-height:1.5;">
+          {{ v.stem[:80] }}{% if v.stem|length > 80 %}…{% endif %}
+        </div>
+        <details>
+          <summary style="cursor:pointer;font-size:12px;color:var(--primary);font-weight:600;">提示</summary>
+          <div style="font-size:12px;color:var(--gray-600);margin-top:6px;padding:8px;background:white;border-radius:4px;">{{ v.hint }}</div>
+        </details>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+<script>
+function submitCorrection(qid, btn) {
+  var ta = document.getElementById('corr-' + qid);
+  var text = (ta.value || '').trim();
+  var resultEl = document.getElementById('result-' + qid);
+  if (!text) {
+    resultEl.innerHTML = '<div class="p-3 rounded-lg bg-red-50 text-sm text-red-700">请输入订正内容</div>';
+    return;
+  }
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> AI验证中…';
+  lucide.createIcons();
+
+  fetch('/student/{{ student.id }}/correction/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question_id: qid, correction_text: text })
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    btn.disabled = false;
+    if (data.is_correct) {
+      btn.className = 'btn btn-success btn-sm mt-2';
+      btn.style.border = 'none';
+      btn.style.cursor = 'default';
+      btn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> AI验证通过 — 闭环完成';
+      resultEl.innerHTML = '<div class="p-3 rounded-lg bg-green-50 text-sm text-green-700 border border-green-200">' +
+        '<strong>验证通过</strong> — ' + data.feedback + '</div>';
+      ta.disabled = true;
+    } else {
+      btn.className = 'btn btn-primary btn-sm mt-2';
+      btn.style.border = 'none';
+      btn.style.cursor = 'pointer';
+      btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> 重新提交';
+      resultEl.innerHTML = '<div class="p-3 rounded-lg bg-red-50 text-sm text-red-700 border border-red-200">' +
+        '<strong>未通过</strong> — ' + data.feedback + '</div>';
+    }
+    lucide.createIcons();
+  })
+  .catch(function () {
+    btn.disabled = false;
+    btn.className = 'btn btn-primary btn-sm mt-2';
+    btn.style.border = 'none';
+    btn.style.cursor = 'pointer';
+    btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> 提交订正 → AI验证';
+    resultEl.innerHTML = '<div class="p-3 rounded-lg bg-red-50 text-sm text-red-700">提交失败，请重试</div>';
+    lucide.createIcons();
+  });
+}
+</script>
+{% endblock %}

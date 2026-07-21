@@ -1,0 +1,19 @@
+# Dependencies & caches
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+
+# Tool / environment artifacts
+.mimocode/
+.playwright-cli/
+.workbuddy/
+
+# Runtime uploads
+.uploads/
+
+# Archived legacy versions (history snapshots kept on disk only)
+archive/
+
+# Personal documents (keep out of version control)
+*.pdf
