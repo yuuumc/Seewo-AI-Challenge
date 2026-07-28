@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}429 · 请求过于频繁 — 希沃智教π{% endblock %}
+{% block content %}
+<div class="min-h-[60vh] flex items-center justify-center">
+  <div class="text-center max-w-md mx-auto animate-fade-in">
+    <div class="inline-flex items-center justify-center w-20 h-20 bg-warm-50 rounded-3xl mb-6">
+      <span class="text-4xl font-extrabold text-warm-500">429</span>
+    </div>
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">请求过于频繁</h1>
+    <p class="text-sm text-gray-500 mb-6">
+      系统检测到短时间内请求过多，已自动限流。<br>
+      请稍等 1 分钟后重试。
+    </p>
+    <div class="flex items-center justify-center gap-3">
+      <a href="{{ url_for('index') }}"
+         class="inline-flex items-center gap-1.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+        <span aria-hidden="true">←</span> 返回首页
+      </a>
+      <button type="button" onclick="location.reload()"
+              class="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:border-primary-400 text-gray-700 hover:text-primary-600 text-sm font-medium px-4 py-2 rounded-lg transition">
+        稍后重试
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}

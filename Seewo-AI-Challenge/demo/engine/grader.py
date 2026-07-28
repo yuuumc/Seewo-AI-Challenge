@@ -7,6 +7,21 @@ import math
 import re
 from pathlib import Path
 
+# LLM provider abstraction (see engine/llm/). Optional dependency: the
+# functions in this module continue to work even if the engine.llm
+# package is absent (older deployments). The wrappers added by
+# ``PATCHES.md`` P2 and P3 guard against that with a try/except.
+try:
+    from engine.llm import (
+        get_provider as _get_llm_provider,
+        TraceCollector as _TraceCollector,
+        store_trace as _store_trace,
+        get_runtime_trace as _get_runtime_trace,
+    )
+    _LLM_LAYER_AVAILABLE = True
+except Exception:  # pragma: no cover - defensive for legacy deploys
+    _LLM_LAYER_AVAILABLE = False
+
 DATA_DIR = Path(__file__).parent.parent / "data"
 
 
@@ -201,6 +216,50 @@ def grade_long_answer(student_answer: str, question: dict, student_id: str) -> d
         "overall_feedback": _generate_overall_feedback(error_types, student_answer),
         "need_teacher_review": ai_confidence < 0.7,
     }
+
+
+
+def grade_long_answer_with_trace(
+    student_answer: str,
+    question: dict,
+    student_id: str,
+    assignment_id: str = "hw_001",
+) -> dict:
+    """Wrap ``grade_long_answer`` with a real-LLM provider and a runtime trace.
+
+    Behaviour:
+        * Returns the same dict shape as ``grade_long_answer`` (drop-in).
+        * Routes the call through ``engine.llm.get_provider()``, which
+          auto-selects between MockProvider (no env var) and
+          OpenAIProvider (``LLM_API_KEY`` set).
+        * Records a single :class:`TraceRecord` per call and stores it
+          in the in-process trace store so ``get_runtime_trace`` can
+          surface it on the agent-trace page.
+        * Falls back to the rule engine when the LLM layer is not
+          importable (e.g. the older deployment path that doesn't ship
+          the engine.llm package).
+
+    This function is the recommended entry point for app.py. It does
+    NOT modify the existing ``grade_long_answer`` signature, so
+    callers that pass only the three positional args continue to
+    compile and run.
+    """
+    if not _LLM_LAYER_AVAILABLE:
+        return grade_long_answer(student_answer, question, student_id)
+
+    provider = _get_llm_provider()
+    collector = _TraceCollector(
+        student_id=student_id, assignment_id=assignment_id
+    )
+    result = provider.grade_step(
+        question=question,
+        student_answer=student_answer,
+        standard_answer=question.get("answer", ""),
+        student_id=student_id,
+        trace=collector,
+    )
+    _store_trace(collector)
+    return result
 
 
 def _get_suggested_fix(step: dict, error_type: str) -> str:
@@ -508,7 +567,19 @@ def get_variants(question_id: str, student_level: str = "B") -> list:
 
 # ── Agent Trace ───────────────────────────────────────────────────────
 def get_agent_trace(student_id: str, assignment_id: str) -> dict:
-    """Get the multi-agent collaboration trace for a grading task."""
+    """Get the multi-agent collaboration trace for a grading task.
+
+    Priority order:
+        1. In-process runtime trace (recorded by the LLM provider
+           when grade_long_answer_with_trace is used).
+        2. Pre-baked JSON in agent_traces.json (legacy fallback so
+           the original demo continues to work for users who never
+           trigger a real grading flow).
+    """
+    if _LLM_LAYER_AVAILABLE:
+        runtime = _get_runtime_trace(student_id, assignment_id)
+        if runtime and runtime.get("agents"):
+            return runtime
     traces = load_json("agent_traces.json")
     key = f"{student_id}_{assignment_id}"
     return traces.get(key, {"agents": [], "trace": "未找到追踪数据"})

@@ -1,0 +1,17 @@
+# Phase 0 测试 + CI + 部署补全（快速原型师）
+# 与 demo/requirements.txt 配合使用；CI workflow 优先装这两个文件
+# leader 集成时可整段 merge 到 demo/requirements.txt
+
+# ── 测试 ──
+pytest==8.3.3
+pytest-flask==1.3.0
+
+# ── 安全（leader 集成后会用到，先装上让 CI 能跑）──
+flask-wtf==1.2.2
+flask-limiter==3.8.0
+
+# ── 部署 ──
+gunicorn==23.0.0
+
+# ── Lint ──
+ruff==0.6.9

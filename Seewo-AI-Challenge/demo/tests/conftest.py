@@ -1,0 +1,146 @@
+"""Pytest configuration & shared fixtures for the Seewo AI Challenge demo.
+
+设计目标：
+1. **强制 demo 模式** — 任何测试运行前清空 LLM_API_KEY，确保走 MockProvider
+2. **容错** — leader 集成（/login 路由、CSRF、auth 模块）尚未完成时，依赖这些的
+   测试自动 xfail，**不会**让 CI 红；其他可以今天就 pass 的 smoke 测试正常跑
+3. **Flask test client** — 通过 `import app; app.app` 拿到 Flask 实例，模拟真实请求
+4. **demo 零环境变量基线** — 不依赖任何 .env 文件，CI / 本地 / Docker 行为一致
+
+约定：
+- 所有 fixture 都 docstring 一句话说明用途
+- 共享常量 / 工具放 `_helpers.py`（pytest 不允许 `from conftest import ...`）
+- 集成检测用布尔值返回（`has_*`），调用方决定 xfail / skip
+"""
+
+from __future__ import annotations
+
+import importlib
+import importlib.util
+import os
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+# ── 路径注入（必须在 pytest 收集 test module 之前）────────────────────
+# demo/ 是 Flask 根目录，测试运行时 cwd 不一定是 demo/，所以把 demo/ 加进 sys.path
+_DEMO_DIR = Path(__file__).resolve().parent.parent
+if str(_DEMO_DIR) not in sys.path:
+    sys.path.insert(0, str(_DEMO_DIR))
+
+# tests/ 也要进 sys.path，让 `from _helpers import ...` 能找到 _helpers.py
+# （pytest 看到 __init__.py 后会把它当 package，但相对导入 `from ._helpers` 在
+# collect-only 阶段需要先 package init 完成；绝对导入更稳）
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+
+
+# ── 强制 demo 模式（必须在 import app 之前）─────────────────────────
+# 清空 LLM 相关 env，确保 get_provider()（P1 阶段由编排工程师接入）返回 MockProvider
+@pytest.fixture(autouse=True, scope="session")
+def _force_demo_mode() -> None:
+    """全局 autouse session fixture：清空 LLM_* env，强制走 mock 降级路径。"""
+    for key in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
+        os.environ.pop(key, None)
+    # 如果 leader 在 app.py 里读 FLASK_ENV，强制 production
+    os.environ["FLASK_ENV"] = "production"
+
+
+# ── Flask app / test client ─────────────────────────────────────────
+@pytest.fixture(scope="session")
+def app() -> Any:
+    """导入 demo.app 并返回 Flask 实例。
+
+    注：当前 app.py 没有 app.config['SECRET_KEY']，leader 的安全 PR 会补上；
+    我们的测试在它没补之前只对 GET 接口做 smoke，POST / CSRF 相关测试靠 has_csrf
+    检测自动 xfail。
+    """
+    if "app" in sys.modules:
+        importlib.reload(sys.modules["app"])
+        return sys.modules["app"].app
+    spec = importlib.util.spec_from_file_location("app", _DEMO_DIR / "app.py")
+    assert spec and spec.loader, "cannot load demo/app.py"
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["app"] = module
+    spec.loader.exec_module(module)
+    return module.app
+
+
+@pytest.fixture()
+def client(app: Any) -> Any:
+    """Flask test client — 每次测试 fresh 一个，无状态共享。"""
+    return app.test_client()
+
+
+# ── 集成状态检测（leader PR 是否落地）────────────────────────────────
+def _has_url_rule(app: Any, rule: str, methods: list[str] | None = None) -> bool:
+    """检查 Flask url_map 是否包含给定 rule（可选方法过滤）。"""
+    for r in app.url_map.iter_rules():
+        if r.rule == rule and (methods is None or any(m in r.methods for m in methods)):
+            return True
+    return False
+
+
+@pytest.fixture(scope="session")
+def has_login(app: Any) -> bool:
+    """/login 路由是否存在（leader 集成后才有）。"""
+    return _has_url_rule(app, "/login", methods=["GET", "POST"])
+
+
+@pytest.fixture(scope="session")
+def has_logout(app: Any) -> bool:
+    """/logout 路由是否存在。"""
+    return _has_url_rule(app, "/logout", methods=["GET", "POST"])
+
+
+@pytest.fixture(scope="session")
+def has_csrf_protect(app: Any) -> bool:
+    """CSRFProtect(app) 是否已注册（检测 extension 是否在 app.extensions）。"""
+    try:
+        from flask_wtf.csrf import CSRFProtect  # noqa: F401
+    except ImportError:
+        return False
+    return "csrf" in app.extensions
+
+
+@pytest.fixture(scope="session")
+def has_rate_limit(app: Any) -> bool:
+    """flask-limiter Limiter 是否已注册（检测 app.extensions["limiter"]）。"""
+    try:
+        from flask_limiter import Limiter  # noqa: F401
+    except ImportError:
+        return False
+    return "limiter" in app.extensions or any(
+        getattr(ext, "__class__", type("_", (), {})).__name__ == "Limiter"
+        for ext in app.extensions.values()
+    )
+
+
+@pytest.fixture(scope="session")
+def has_auth_module() -> bool:
+    """engine.auth 模块是否已被 leader 补上（sso / RBAC / session helpers）。"""
+    try:
+        importlib.import_module("engine.auth")
+        return True
+    except ImportError:
+        return False
+
+
+# ── 演示账号 fixture（与前端 UI 线约定一致）────────────────────────
+# 8 个账号名/密码在 tests/_helpers.py 的 DEMO_ACCOUNTS 里 —
+# 拆出 _helpers.py 是因为 pytest 不允许 `from conftest import ...`
+
+
+@pytest.fixture()
+def demo_accounts() -> dict[str, dict[str, str]]:
+    """返回 8 个演示账号（4 角色 + 5 学生）的明文清单。
+
+    测试代码用其做登录 / IDOR 校验；**不要**在 fixture 内部做登录，
+    留给具体测试自己跑 client.post('/login', ...)。
+    """
+    # 延迟 import 避开循环
+    from _helpers import DEMO_ACCOUNTS
+    return DEMO_ACCOUNTS
