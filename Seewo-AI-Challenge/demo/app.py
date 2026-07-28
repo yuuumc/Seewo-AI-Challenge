@@ -35,7 +35,7 @@ Usage:
 
 import os
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash  # P0: 补 flash import（修 9 个 test_auth 500）
 
 from engine.grader import (
     grade_choice,
@@ -525,6 +525,7 @@ def api_grade_student(student_id, assignment_id):
 
 @app.route("/api/analytics/<assignment_id>")
 @login_required
+@roles_required("teacher", "head", "admin")  # P0-6: 收紧为教师+ 角色（学生不应见全班学情）
 def api_analytics(assignment_id):
     """API: class analytics as JSON."""
     return jsonify(analyze_class_performance(assignment_id))
@@ -532,6 +533,7 @@ def api_analytics(assignment_id):
 
 @app.route("/api/correction-loop/<assignment_id>")
 @login_required
+@roles_required("teacher", "head", "admin")  # P0-6: 收紧为教师+ 角色
 def api_correction_loop(assignment_id):
     """API: class correction loop stats as JSON."""
     return jsonify(get_class_correction_stats(assignment_id))
@@ -539,6 +541,7 @@ def api_correction_loop(assignment_id):
 
 @app.route("/api/review-queue/<assignment_id>")
 @login_required
+@roles_required("teacher", "head", "admin")  # P0-6: 收紧为教师+ 角色（暴露题目难度信息）
 def api_review_queue(assignment_id):
     """API: teacher review queue as JSON."""
     return jsonify(get_teacher_review_queue(assignment_id))
@@ -554,6 +557,7 @@ def api_radar(student_id):
 
 @app.route("/api/variants/<question_id>/<student_level>")
 @login_required
+@roles_required("teacher", "head", "admin")  # P0-6: 收紧为教师+ 角色（变式题 A 难度不应让学生随便拉）
 def api_variants(question_id, student_level):
     """API: variant questions as JSON."""
     return jsonify(get_variants(question_id, student_level))
