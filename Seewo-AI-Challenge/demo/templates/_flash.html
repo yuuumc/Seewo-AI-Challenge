@@ -1,0 +1,30 @@
+{# Render flashed messages from Flask's ``flash()`` mechanism.
+   Categories: success (green), error (red), warning (amber), info (blue, default).
+   Renders nothing when there are no messages, so it's safe to include on every page. #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="mb-4 space-y-2 animate-slide-down" data-testid="flash-stack" role="status" aria-live="polite">
+      {% for category, message in messages %}
+        {% set cat = category if category else 'info' %}
+        <div role="alert"
+             data-flash-category="{{ cat }}"
+             class="flex items-start gap-2.5 px-3.5 py-2.5 border rounded-xl text-sm font-medium shadow-sm
+                    {% if cat == 'success' %}bg-green-50 border-green-200 text-green-800
+                    {% elif cat == 'error' %}bg-red-50 border-red-200 text-red-800
+                    {% elif cat == 'warning' %}bg-amber-50 border-amber-200 text-amber-800
+                    {% else %}bg-blue-50 border-blue-200 text-blue-800{% endif %}">
+          {% if cat == 'success' %}
+            <i data-lucide="check-circle-2" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+          {% elif cat == 'error' %}
+            <i data-lucide="alert-octagon" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+          {% elif cat == 'warning' %}
+            <i data-lucide="alert-triangle" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+          {% else %}
+            <i data-lucide="info" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+          {% endif %}
+          <span class="flex-1 leading-relaxed">{{ message }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}

@@ -1,0 +1,40 @@
+{# Current-user widget for the navbar.
+   Shows a login CTA when anonymous; avatar + name + role + logout when authenticated.
+   Requires the Jinja globals ``get_current_user()`` and ``csrf_token()``
+   (registered in security.py::register_template_helpers). #}
+{% set u = get_current_user() %}
+{% if u %}
+  {% set initial = (u.name or u.email or '?')[:1]|upper %}
+  {% set role_label_map = {
+       'teacher': '教师',
+       'head':    '年级组长',
+       'admin':   '管理员',
+       'student': '学生',
+  } %}
+  {% set role_label = role_label_map.get(u.role, u.role) %}
+  <div class="flex items-center gap-2 sm:gap-2.5 pl-2 sm:pl-3 ml-1 sm:ml-2 border-l border-gray-200/80"
+       data-testid="nav-user">
+    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-sm shadow-primary-400/20"
+         aria-hidden="true">{{ initial }}</div>
+    <div class="hidden sm:flex flex-col leading-tight min-w-0">
+      <span class="text-sm font-semibold text-gray-900 truncate max-w-[8rem]">{{ u.name or u.email }}</span>
+      <span class="text-[10px] uppercase tracking-wider text-gray-400 font-medium">{{ role_label }}</span>
+    </div>
+    <form method="post" action="/logout" class="inline-flex m-0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit"
+              class="ml-0.5 sm:ml-1 inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-colors"
+              title="退出登录">
+        <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+        <span class="hidden md:inline">退出</span>
+      </button>
+    </form>
+  </div>
+{% else %}
+  <a href="{{ url_for('login') if url_for is defined else '/login' }}"
+     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-600 shadow-sm shadow-primary-400/20 transition-colors"
+     data-testid="nav-login">
+    <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+    <span>登录</span>
+  </a>
+{% endif %}

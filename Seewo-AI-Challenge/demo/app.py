@@ -104,9 +104,11 @@ def login():
         user = login_user(username, password)
         if user:
             audit_log("login_success", user_id=username, role=user["role"])
+            flash(f"欢迎回来，{user.get('name') or username}！", "success")
             nxt = request.args.get("next") or url_for("index")
             return redirect(nxt)
         audit_log("login_failed", user_id=username)
+        flash("账号或密码错误，请重试。", "error")
         return render_template(
             "login.html", error="账号或密码错误", users=list(DEMO_USERS.items())
         ), 401
@@ -118,6 +120,7 @@ def login():
 def logout():
     """Clear session and redirect home."""
     logout_user()
+    flash("已安全退出，期待再次相见。", "info")
     return redirect(url_for("index"))
 
 
