@@ -28,7 +28,7 @@ demo/
 │   ├── answers.json             # 5人×6题预设作答（覆盖5种错误类型）
 │   ├── corrections.json         # 订正记录（含AI验证结果）
 │   ├── variants.json            # 变式题（每道错题3档难度×3题）
-│   ├── agent_traces.json        # 多Agent决策轨迹
+│   ├── agent_traces.json        # 多步推理轨迹
 │   ├── knowledge_tree.json      # 知识树结构
 │   ├── student_dashboard.json   # 学生首页数据
 │   ├── growth_report.json       # 成长报告数据
@@ -42,7 +42,7 @@ demo/
 │   │   ├── teacher_grade.html          # AI批改详情（步骤级分析）
 │   │   ├── teacher_review.html         # AI低置信度复核队列
 │   │   ├── teacher_correction.html     # 订正闭环看板
-│   │   ├── teacher_agent_trace.html    # 多Agent决策追踪
+│   │   ├── teacher_agent_trace.html    # 多步推理追踪
 │   │   └── teacher_analytics.html      # 学情仪表盘
 │   │
 │   ├── 学生端 (7页)
@@ -74,7 +74,7 @@ demo/
 | 2 | 教师Dashboard | 作业概览、题目列表、知识点覆盖 |
 | 3 | 批改详情 `/teacher/grade/hw_001` | **步骤级分析**：Q5/Q6的逐步骤正误标注、错因分类、AI评语 |
 | 4 | AI复核队列 `/teacher/review/hw_001` | **智教π独有**：按置信度从低到高排序，标记~15%需教师复核的判定 |
-| 5 | Agent追踪 `/teacher/agent-trace/hw_001` | **智教π独有**：每个学生的多Agent决策轨迹、逐题置信度、需复核项 |
+| 5 | Agent追踪 `/teacher/agent-trace/hw_001` | **智教π独有**：每个学生的多步推理轨迹、逐题置信度、需复核项 |
 | 6 | 订正闭环 `/teacher/correction-loop/hw_001` | **智教π独有**：全班订正进度、每人闭环率、脱环提醒 |
 | 7 | 学情分析 `/teacher/analytics/hw_001` | 热力图、班级对比、逐题分析、AI教学建议 |
 
@@ -112,7 +112,7 @@ demo/
 |--------|----------|---------|
 | **步骤级分析** | teacher_grade | 竞品多为"对/错"二元判断 |
 | **AI置信度复核** | teacher_review | 竞品AI不标注不确定性 |
-| **多Agent协作追踪** | teacher_agent_trace | 竞品为黑盒单模型 |
+| **多步推理追踪** | teacher_agent_trace | 竞品为黑盒单模型 |
 | **订正闭环** | teacher_correction + student_correction | 竞品批完即止，无闭环 |
 | **AI错题本（根因分析）** | student_error_book | 竞品只记"哪道题错了" |
 | **知识树** | student_knowledge_tree | 竞品用列表，不展示知识关系 |
