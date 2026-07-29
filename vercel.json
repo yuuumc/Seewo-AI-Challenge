@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "Seewo-AI-Challenge/public",
+  "cleanUrls": true,
+  "trailingSlash": false
+}
