@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>希沃智教π — AI 智能作业批改系统</title>
+<meta name="description" content="希沃智教π：模块化 AI 引擎驱动的智能作业批改系统。5 步推理链透明可追溯、步骤级批改、苏格拉底式辅导、拍照即批改、批改即分析、分析即推送。教师端 6 页 + 学生端 7 页一站式作业闭环。" />
+<meta name="theme-color" content="#0b1220" />
+<style>
+  :root{--bg:#0b1220;--bg2:#111a2e;--card:#172238;--line:#1f2d48;--txt:#e6edf6;--mut:#8aa1c1;--acc:#5eead4;--acc2:#7dd3fc;--warn:#fbbf24}
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased}
+  a{color:var(--acc2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 96px}
+  .nav{display:flex;align-items:center;gap:14px;padding:14px 0 28px}
+  .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:flex;align-items:center;justify-content:center;color:#0b1220;font-weight:800;font-size:18px}
+  .brand{font-weight:700;font-size:17px;letter-spacing:.5px}
+  .brand small{color:var(--mut);font-weight:400;margin-left:8px;font-size:12px}
+  .hero{padding:48px 0 36px}
+  .eyebrow{display:inline-block;padding:4px 10px;background:rgba(94,234,212,.12);color:var(--acc);border:1px solid rgba(94,234,212,.3);border-radius:999px;font-size:12px;letter-spacing:.5px;margin-bottom:18px}
+  h1{font-size:46px;line-height:1.15;margin:0 0 14px;letter-spacing:-1px}
+  h1 .pi{color:var(--acc)}
+  .tag{font-size:20px;color:var(--mut);max-width:780px;margin:0 0 28px}
+  .quote{margin:0 0 36px;padding:14px 18px;border-left:3px solid var(--acc);background:var(--bg2);border-radius:0 8px 8px 0;color:var(--txt);font-style:italic}
+  .ctas{display:flex;gap:12px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:9px;font-weight:600;font-size:14px;transition:.15s;border:1px solid transparent}
+  .btn-primary{background:var(--acc);color:#0b1220}
+  .btn-primary:hover{background:#34d3bd;text-decoration:none}
+  .btn-ghost{background:transparent;color:var(--txt);border-color:var(--line)}
+  .btn-ghost:hover{border-color:var(--acc2);text-decoration:none}
+  section{margin-top:64px}
+  h2{font-size:26px;margin:0 0 8px;letter-spacing:-.5px}
+  .sub{color:var(--mut);font-size:15px;margin:0 0 24px}
+  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+  .feat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .feat .ic{font-size:22px;margin-bottom:8px}
+  .feat h3{margin:0 0 6px;font-size:15px;color:var(--txt)}
+  .feat p{margin:0;font-size:13px;color:var(--mut)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:720px){.grid2{grid-template-columns:1fr}h1{font-size:34px}.tag{font-size:17px}}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px}
+  .panel h3{margin:0 0 12px;font-size:16px;color:var(--acc);display:flex;align-items:center;gap:8px}
+  .panel h3 .badge{font-size:11px;color:var(--bg);background:var(--acc);padding:2px 8px;border-radius:4px;font-weight:700}
+  .row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .row:last-child{border-bottom:0}
+  .row .k{color:var(--txt);font-weight:500}
+  .row .v{color:var(--mut);font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .hl{color:var(--warn);font-weight:600}
+  pre{background:#070d1a;border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;margin:0;font-size:13px;line-height:1.6}
+  pre code{color:#d6deeb;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .kbd{background:#0b1220;border:1px solid var(--line);border-bottom-width:2px;padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace;font-size:12px;color:var(--acc)}
+  .meta{display:flex;gap:20px;flex-wrap:wrap;margin-top:18px;font-size:13px;color:var(--mut)}
+  .meta b{color:var(--txt)}
+  footer{margin-top:80px;padding-top:24px;border-top:1px solid var(--line);color:var(--mut);font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .pillrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .pill{background:rgba(125,211,252,.1);color:var(--acc2);padding:3px 9px;border-radius:999px;font-size:12px;border:1px solid rgba(125,211,252,.25)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="nav">
+    <div class="logo">π</div>
+    <div class="brand">希沃智教<small>Seewo ZhiJiao · AI Challenge</small></div>
+  </div>
+
+  <section class="hero">
+    <span class="eyebrow">2026 希沃 AI 先锋未来人才大赛 · 参赛项目</span>
+    <h1>每个学生，都被<br/><span class="pi">认真对待</span>。</h1>
+    <p class="tag">希沃智教π —— AI 智能作业批改系统。模块化 AI 引擎 + 5 步推理链（OCR → 推理 → 知识图谱 → 诊断 → 策略）驱动，步骤级批改、苏格拉底式辅导、拍照即批改、批改即分析、分析即推送，覆盖作业完整闭环。</p>
+    <div class="quote">"批改不应是教师的负担；分析不应停在分数；每个孩子的错题都该有下一步。"</div>
+    <div class="ctas">
+      <a class="btn btn-primary" href="https://github.com/yuuumc/Seewo-AI-Challenge" target="_blank" rel="noopener">★ GitHub 源码</a>
+      <a class="btn btn-ghost" href="https://github.com/yuuumc/Seewo-AI-Challenge#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B" target="_blank" rel="noopener">本地运行 →</a>
+    </div>
+    <div class="meta">
+      <span><b>教师端</b> · 6 页</span>
+      <span><b>学生端</b> · 7 页</span>
+      <span><b>AI 引擎</b> · 模块化 · 5 步推理链</span>
+      <span><b>部署</b> · Docker / Flask / Vercel</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>核心能力</h2>
+    <p class="sub">把"批改"做成"诊断"——AI 不仅打勾打叉，还告诉教师为什么错、告诉学生下一步该练什么。</p>
+    <div class="features">
+      <div class="feat"><div class="ic">⚙️</div><h3>模块化 AI 引擎</h3><p>5 步推理链透明可追溯：OCR → 推理 → 知识图谱 → 诊断 → 策略，决策全程留痕。</p></div>
+      <div class="feat"><div class="ic">🔍</div><h3>步骤级批改</h3><p>解答题按步骤给分 + 错因分类，定位卡壳步骤而非只看最终答案。</p></div>
+      <div class="feat"><div class="ic">💬</div><h3>苏格拉底式辅导</h3><p>Math Coach 追问不给答案，引导学生自己走出下一步，养成可迁移的思考力。</p></div>
+      <div class="feat"><div class="ic">📷</div><h3>拍照即批改</h3><p>手机拍作业本 → OCR → 推理 → 反馈 ≤ 30s，无需手动输入。</p></div>
+      <div class="feat"><div class="ic">📊</div><h3>置信度排序复核</h3><p>教师只处理约 15% 低置信度结果，AI 标注的疑点一目了然。</p></div>
+      <div class="feat"><div class="ic">🔁</div><h3>订正闭环推送</h3><p>错 1 练 3：变式题 A/B/C 三档分层推送，订正完成率班级看板追踪。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>产品页面</h2>
+    <p class="sub">完整 demo 共 13 页（教师 6 + 学生 7），均可在 <code class="kbd">demo/</code> 目录下启动体验。</p>
+    <div class="grid2">
+      <div class="panel">
+        <h3>教师端 <span class="badge">6 页</span></h3>
+        <div class="row"><span class="k">作业管理</span><span class="v">/teacher</span></div>
+        <div class="row"><span class="k">AI 批改详情</span><span class="v">/teacher/grade/&lt;hw&gt;</span></div>
+        <div class="row"><span class="k">AI 复核队列</span><span class="v">/teacher/review/&lt;hw&gt;</span></div>
+        <div class="row"><span class="k">订正闭环看板</span><span class="v">/teacher/correction-loop/&lt;hw&gt;</span></div>
+        <div class="row"><span class="k"><span class="hl">5 步推理链追踪</span></span><span class="v">/teacher/agent-trace/&lt;hw&gt;</span></div>
+        <div class="row"><span class="k">学情分析</span><span class="v">/teacher/analytics/&lt;hw&gt;</span></div>
+      </div>
+      <div class="panel">
+        <h3>学生端 <span class="badge">7 页</span></h3>
+        <div class="row"><span class="k">学习首页 (Today)</span><span class="v">/student/s02/dashboard</span></div>
+        <div class="row"><span class="k"><span class="hl">AI 错题本</span></span><span class="v">/student/s02/error-book</span></div>
+        <div class="row"><span class="k">知识树</span><span class="v">/student/s02/knowledge-tree</span></div>
+        <div class="row"><span class="k"><span class="hl">Math Coach</span></span><span class="v">/student/s02/coach</span></div>
+        <div class="row"><span class="k">成长报告</span><span class="v">/student/s02/growth</span></div>
+        <div class="row"><span class="k">订正练习</span><span class="v">/student/s02/correction</span></div>
+        <div class="row"><span class="k">知识雷达</span><span class="v">/student/s02/radar</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>技术栈</h2>
+    <p class="sub">开源、零外部闭源依赖；本地 5 分钟跑通；生产可上 Docker / Vercel。</p>
+    <div class="pillrow">
+      <span class="pill">Python 3.11</span>
+      <span class="pill">Flask</span>
+      <span class="pill">PaddleOCR</span>
+      <span class="pill">DeepSeek-Math (LLM)</span>
+      <span class="pill">Gunicorn + Nginx</span>
+      <span class="pill">Docker</span>
+      <span class="pill">Tailwind + Jinja2</span>
+      <span class="pill">SQLite (demo) → Postgres (prod)</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>本地运行</h2>
+    <p class="sub">克隆、装依赖、启动，浏览器打开 <code class="kbd">http://localhost:5000</code>。</p>
+    <pre><code>git clone https://github.com/yuuumc/Seewo-AI-Challenge.git
+cd Seewo-AI-Challenge/demo
+pip install flask
+python app.py
+# 浏览器打开 http://localhost:5000
+# Windows 用户双击 demo/start.bat 一键启动</code></pre>
+  </section>
+
+  <section>
+    <h2>参赛信息</h2>
+    <p class="sub">2026 希沃 AI 先锋未来人才大赛 · 完整文档已开源在仓库根 01-09 文档与 <code class="kbd">demo/</code> 目录。</p>
+    <div class="features">
+      <div class="feat"><div class="ic">📑</div><h3>需求分析</h3><p>01_需求分析.md · 功能/非功能/优先级矩阵</p></div>
+      <div class="feat"><div class="ic">👥</div><h3>用户研究</h3><p>02_用户研究.md · 教师/教研组长/信息化主任三角色画像</p></div>
+      <div class="feat"><div class="ic">🆚</div><h3>竞品分析</h3><p>03_竞品分析.md · 讯飞/七天/飞象/小猿对比</p></div>
+      <div class="feat"><div class="ic">🧭</div><h3>产品设计</h3><p>04_产品设计.md · 信息架构·交互流程·UI 原则</p></div>
+      <div class="feat"><div class="ic">🏗️</div><h3>技术方案</h3><p>05_技术方案.md · 引擎架构·模块设计·通信时序</p></div>
+      <div class="feat"><div class="ic">📋</div><h3>PRD + 报名</h3><p>06_PRD.md · 07_PPT.md · 08_Demo.md · 09_报名材料.md</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <div>© 2026 Seewo ZhiJiao π · 希沃 AI 先锋未来人才大赛参赛项目</div>
+    <div><a href="https://github.com/yuuumc/Seewo-AI-Challenge" target="_blank" rel="noopener">github.com/yuuumc/Seewo-AI-Challenge</a></div>
+  </footer>
+
+</div>
+</body>
+</html>
