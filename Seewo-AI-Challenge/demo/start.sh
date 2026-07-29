@@ -1,5 +1,8 @@
 #!/bin/bash
 # 希沃智教π Demo 启动脚本 (macOS / Linux)
+#
+# P0-1 安全 Blocker：生产/对外演示优先用 gunicorn（多 worker 防单点崩溃），
+# 本地开发可退回 python3 app.py（仅 127.0.0.1，已防 RCE）。
 
 echo ""
 echo "  ╔══════════════════════════════════════════╗"
@@ -15,24 +18,42 @@ if ! command -v python3 &> /dev/null; then
 fi
 echo "  [✓] Python3 已就绪"
 
-# Install dependencies
+# Install dependencies（含 gunicorn）
 echo "  [→] 检查依赖..."
-pip3 install flask -q 2>/dev/null
+pip3 install -r requirements.txt -q 2>/dev/null
 echo "  [✓] 依赖已就绪"
 
-# Open browser
-echo "  [→] 即将打开浏览器..."
-sleep 1
-open http://localhost:5000 2>/dev/null || xdg-open http://localhost:5000 2>/dev/null &
-
-# Start Flask
-echo "  [→] 启动服务..."
-echo "  ─────────────────────────────────────────"
-echo "    教师端:  http://localhost:5000/teacher"
-echo "    学生端:  http://localhost:5000/student"
-echo "    学情:    http://localhost:5000/teacher/analytics/hw_001"
-echo "    API:     http://localhost:5000/api/analytics/hw_001"
-echo "    按 Ctrl+C 停止服务"
-echo "  ─────────────────────────────────────────"
-echo ""
-python3 app.py
+# 优先用 gunicorn（生产模式），降级到 dev server（仅 127.0.0.1）
+if command -v gunicorn &> /dev/null; then
+    WORKERS=${GUNICORN_WORKERS:-2}
+    BIND=${GUNICORN_BIND:-127.0.0.1:5000}
+    echo "  [→] 用 gunicorn 启动（workers=$WORKERS bind=$BIND）..."
+    echo "  ─────────────────────────────────────────"
+    echo "    教师端:  http://localhost:5000/teacher"
+    echo "    学生端:  http://localhost:5000/student"
+    echo "    学情:    http://localhost:5000/teacher/analytics/hw_001"
+    echo "    API:     http://localhost:5000/api/analytics/hw_001"
+    echo "    按 Ctrl+C 停止服务"
+    echo "  ─────────────────────────────────────────"
+    echo ""
+    gunicorn -c ../../gunicorn.conf.py \
+        --workers "$WORKERS" \
+        --bind "$BIND" \
+        --chdir "$(pwd)" \
+        "demo.app:app"
+else
+    echo "  [!] gunicorn 未安装，降级到 Flask dev server（仅 127.0.0.1）"
+    echo "  [→] 启动服务..."
+    echo "  ─────────────────────────────────────────"
+    echo "    教师端:  http://localhost:5000/teacher"
+    echo "    学生端:  http://localhost:5000/student"
+    echo "    学情:    http://localhost:5000/teacher/analytics/hw_001"
+    echo "    API:     http://localhost:5000/api/analytics/hw_001"
+    echo "    按 Ctrl+C 停止服务"
+    echo "  ─────────────────────────────────────────"
+    echo ""
+    # Open browser
+    sleep 1
+    open http://localhost:5000 2>/dev/null || xdg-open http://localhost:5000 2>/dev/null &
+    python3 app.py
+fi

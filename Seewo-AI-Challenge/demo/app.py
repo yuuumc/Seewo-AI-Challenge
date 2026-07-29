@@ -34,6 +34,7 @@ Usage:
 """
 
 import os
+import sys
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash  # P0: 补 flash import（修 9 个 test_auth 500）
 
@@ -573,12 +574,27 @@ def healthz():
 if __name__ == "__main__":
     print("=" * 60)
     print("  希沃智教π — AI智能作业批改系统 Demo (Phase 0 安全加固版)")
-    print("  打开浏览器访问: http://localhost:5000")
+    print("  开发入口（仅用于本地调试，生产请用 gunicorn）")
+    print("  ────────────────────────────────────────────────────")
+    print("  浏览器访问:    http://localhost:5000")
+    print("  教师账号:      teacher / teacher123")
+    print("  学生账号:      s01 ~ s05 / student123")
+    print("  生产启动:      gunicorn -c gunicorn.conf.py 'demo.app:app'")
     print("=" * 60)
-    # 生产环境用 gunicorn 启动（见项目根 gunicorn.conf.py）
-    # 此处仅作为开发回退入口：debug 关闭、host 收紧为 loopback
+    # P0-1 安全 Blocker:
+    # - debug 永远 False（即使 FLASK_DEBUG=1 也强制覆盖）
+    # - host 默认 127.0.0.1（防误绑 0.0.0.0 暴露 RCE 风险）
+    # - 任何 0.0.0.0 绑定请求都拒绝执行（生产请用 gunicorn）
+    _host = os.environ.get("FLASK_HOST", "127.0.0.1")
+    if _host == "0.0.0.0":
+        print(
+            "[!] 安全拦截: FLASK_HOST=0.0.0.0 不允许走 dev 入口（防 RCE）。\n"
+            "    生产请用 gunicorn -c gunicorn.conf.py（默认绑 0.0.0.0:8000）\n"
+            "    外层由 nginx 拦截（见 deploy/nginx.conf.example）"
+        )
+        sys.exit(2)
     app.run(
-        debug=os.environ.get("FLASK_DEBUG", "0") == "1",
-        host=os.environ.get("FLASK_HOST", "127.0.0.1"),
+        debug=False,
+        host=_host,
         port=int(os.environ.get("FLASK_PORT", "5000")),
     )

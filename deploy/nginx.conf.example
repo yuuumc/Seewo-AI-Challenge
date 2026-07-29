@@ -1,0 +1,131 @@
+# 希沃智教π · Nginx 反代配置（生产模板）
+#
+# P0-1 安全 Blocker：gunicorn 只绑 0.0.0.0:8000（容器内），由 nginx 在外层做：
+#   1. TLS 终结（Let's Encrypt / 内网 CA）
+#   2. 真实 IP 透传（X-Forwarded-For / X-Real-IP）
+#   3. 限流（防爆破登录）
+#   4. 安全头（CSP / X-Frame-Options / HSTS）
+#   5. 静态资源直出（gzip + 长缓存）
+#
+# 部署步骤：
+#   1. 复制本文件为 /etc/nginx/sites-available/seewo-pi.conf
+#   2. ln -s /etc/nginx/sites-available/seewo-pi.conf /etc/nginx/sites-enabled/
+#   3. 申请证书（certbot --nginx -d your-domain）
+#   4. nginx -t && systemctl reload nginx
+#   5. gunicorn -c gunicorn.conf.py 按 systemd / docker-compose 启动
+
+# ── 上游 gunicorn ─────────────────────────────────────────────
+upstream seewo_pi_gunicorn {
+    # 容器内 gunicorn 监听 8000；若多实例可加多行 + ip_hash
+    server 127.0.0.1:8000 fail_timeout=0;
+
+    # 健康检查（nginx 1.16+）
+    keepalive 32;
+}
+
+# ── HTTP → HTTPS 跳转 ─────────────────────────────────────────
+server {
+    listen 80;
+    listen [::]:80;
+    server_name _;  # 替换为你的域名，如 ai-demo.seewo-pi.cn
+
+    # Let's Encrypt 验证路径
+    location /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+
+    # 其余全部 301 到 HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ── HTTPS 主配置 ─────────────────────────────────────────────
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name _;  # 替换为你的域名
+
+    # 证书路径（Let's Encrypt 自动续期）
+    ssl_certificate     /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    # HSTS（一旦启用 6 个月，期间浏览器强制 HTTPS）
+    add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
+
+    # 安全头
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    # CSP：希沃 demo 暂允许 inline（登录页等用了），生产应细化
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" always;
+
+    # 真实客户端 IP（gunicorn / Flask 据此记录 audit_log）
+    real_ip_header X-Forwarded-For;
+    set_real_ip_from 127.0.0.1;        # 信任本机反代
+    set_real_ip_from 10.0.0.0/8;       # 内网网段
+    set_real_ip_from 172.16.0.0/12;
+    set_real_ip_from 192.168.0.0/16;
+
+    # 客户端请求体上限（防 DoS）
+    client_max_body_size 2m;
+    client_body_timeout 60s;
+
+    # 日志
+    access_log /var/log/nginx/seewo-pi.access.log;
+    error_log  /var/log/nginx/seewo-pi.error.log warn;
+
+    # gzip 压缩
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types
+        text/plain
+        text/css
+        text/javascript
+        application/javascript
+        application/json
+        application/xml
+        image/svg+xml;
+
+    # 静态资源（Flask /demo/static/ 映射为 /static/）
+    location /static/ {
+        alias /opt/seewo-pi/Seewo-AI-Challenge/demo/static/;
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+        access_log off;  # 静态访问不写日志，减少噪声
+    }
+
+    # 登录端点单独限流（防爆破）
+    location ~ ^/(login|api/) {
+        limit_req zone=seewo_login burst=10 nodelay;
+        limit_req_status 429;
+        proxy_pass http://seewo_pi_gunicorn;
+        include /etc/nginx/proxy_params;  # 标准反代参数
+    }
+
+    # 其它端点正常反代
+    location / {
+        proxy_pass http://seewo_pi_gunicorn;
+        include /etc/nginx/proxy_params;
+    }
+
+    # 健康检查（k8s/lb 探活，绕过限流）
+    location = /healthz {
+        access_log off;
+        proxy_pass http://seewo_pi_gunicorn;
+    }
+}
+
+# ── 限流区（http 上下文，需放在 server 块外或独立文件）─────────
+# 用法：在 /etc/nginx/nginx.conf 的 http {} 块内加：
+#   limit_req_zone $binary_remote_addr zone=seewo_login:10m rate=30r/m;
+#
+# 30 req/min/单 IP：登录页 + API 共用（防爆破）；其它端点不限。

@@ -48,14 +48,37 @@
 
 ## 快速开始（运行 Demo）
 
+**本地开发**（dev 入口，仅 127.0.0.1，P0-1 安全 Blocker）：
+
 ```bash
 cd Seewo-AI-Challenge/demo
-pip install flask==3.1.0
+pip install -r requirements.txt
 python app.py
 # 浏览器打开 http://localhost:5000
 ```
 
-Windows 用户也可双击 `Seewo-AI-Challenge/demo/start.bat` 一键启动。
+**生产 / 对外演示**（gunicorn + nginx，Phase 0 必修）：
+
+```bash
+# 1. 安装依赖（含 gunicorn）
+cd Seewo-AI-Challenge/demo && pip install -r requirements.txt
+
+# 2. 用 gunicorn 启动（多 worker 防单点崩溃）
+cd ../..  # 回到仓库根
+gunicorn -c gunicorn.conf.py "demo.app:app"
+# 监听 0.0.0.0:8000，由 nginx 反代到 443
+
+# 3. （可选）配 nginx 反代 + TLS
+cp deploy/nginx.conf.example /etc/nginx/sites-available/seewo-pi.conf
+# 修改 server_name 和证书路径后：
+ln -s /etc/nginx/sites-available/seewo-pi.conf /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+```
+
+**安全约束**：
+- `FLASK_HOST=0.0.0.0` 走 dev 入口会立即拒绝（防 RCE 误配）
+- 生产模式 `DEMO_AUTH_OPEN=0` 强制 CSRF + RBAC + IDOR 全开
+- session secret 必须设 `FLASK_SECRET_KEY` ≥32 字节（.env.example 模板）
 
 > Demo 为**模拟 AI 引擎**（JSON 数据 + 规则引擎），无需任何外部 API Key 即可完整体验全部交互流程。
 
