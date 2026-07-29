@@ -1,0 +1,87 @@
+# docker-compose.prod.yml — 生产覆盖文件
+# 用法：docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# 关键差异：
+#   1. pg/redis 完全不暴露端口（仅内网 service name 通信）
+#   2. api 仅 8000（用 nginx/ALB 转发）
+#   3. FLASK_SECRET_KEY 强制注入（无默认 fallback）
+#   4. ENV=production 触发 config.py 严格校验
+#   5. worker / beat 资源限额更严
+#   6. 日志走 json-file，限 10MB × 3 文件
+
+services:
+  postgres:
+    ports: []  # 显式清空（覆盖基础 compose 的 5432 映射）
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  redis:
+    ports: []
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD required}"]
+    volumes:
+      - redis_data:/data
+
+  api:
+    environment:
+      ENV: production
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY required}
+      DATABASE_URL: postgresql+asyncpg://seewo:${POSTGRES_PASSWORD}@postgres:5432/seewo
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/2
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    environment:
+      ENV: production
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY required}
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 2G
+
+  worker-llm:
+    image: seewo-api:phase1
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    environment:
+      ENV: production
+      DATABASE_URL: postgresql+asyncpg://seewo:${POSTGRES_PASSWORD}@postgres:5432/seewo
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/2
+    command: ["python", "-m", "infra.celery.worker_llm"]
+    deploy:
+      resources:
+        limits:
+          cpus: "8"
+          memory: 4G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  beat:
+    environment:
+      ENV: production
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY required}
+
+volumes:
+  pg_data:
+  redis_data:

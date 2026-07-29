@@ -1,0 +1,27 @@
+requirements-fastapi.txt  # Phase 1 新增依赖（与原 requirements.txt 并存）
+# 安装: pip install -r requirements.txt -r requirements-fastapi.txt
+
+# === Web 层：FastAPI + ASGI ===
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+starlette==0.38.6
+
+# === 配置 ===
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# === 数据库 ===
+sqlalchemy[asyncio]==2.0.35
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+alembic==1.13.3
+
+# === 缓存 / Session ===
+redis==5.0.8
+hiredis==3.0.0
+
+# === 任务队列 ===
+celery==5.4.0
+
+# === 监控（Week 7 接入） ===
+# flower==2.0.1

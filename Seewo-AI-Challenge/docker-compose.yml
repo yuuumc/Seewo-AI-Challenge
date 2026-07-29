@@ -1,0 +1,143 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: seewo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: seewo
+      POSTGRES_USER: seewo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-seewo}  # dev 默认；prod 由 docker-compose.prod.yml 强制注入
+    # —— P0-1: 删 ports 段。容器内网已用 service name 直连 ——
+    # —— P0-3: initdb 改跑 initdb.sh（alembic upgrade head），不再用 schema.sql ——
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./infra/pg/initdb.sh:/docker-entrypoint-initdb.d/01-initdb.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seewo -d seewo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: seewo-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    # —— P0-1: 删 ports 段 ——
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: seewo-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://seewo:seewo@postgres:5432/seewo
+      DATABASE_URL_SYNC: postgresql+psycopg2://seewo:seewo@postgres:5432/seewo
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      # —— P0-2: 缺值直接启动失败，不兜底默认 ——
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY required (generate with: openssl rand -hex 32)}
+      ENV: ${ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SEEWO_DEMO_MODE: ${SEEWO_DEMO_MODE:-false}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; r=urllib.request.urlopen('http://localhost:8000/api/v1/healthz', timeout=3); sys.exit(0 if r.status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    command: ["uvicorn", "demo.fastapi_app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: seewo-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://seewo:seewo@postgres:5432/seewo
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY required}
+    command: ["python", "-m", "infra.celery.worker"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # —— P0-4: 独立 worker-llm 队列，消费 llm 队列，concurrency=1，time_limit=30min ——
+  worker-llm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: seewo-worker-llm
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://seewo:seewo@postgres:5432/seewo
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY required}
+    command: ["python", "-m", "infra.celery.worker_llm"]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: seewo-beat
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://seewo:seewo@postgres:5432/seewo
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY required}
+    command: ["python", "-m", "infra.celery.beat"]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  pg_data:
+  redis_data:
