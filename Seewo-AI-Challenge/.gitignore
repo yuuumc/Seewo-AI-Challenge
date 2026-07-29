@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+demo/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
+
+# Node (if any)
+node_modules/
+
+# Misc
+*.b64
+/tmp/
