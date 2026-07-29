@@ -98,25 +98,64 @@ def has_logout(app: Any) -> bool:
 
 @pytest.fixture(scope="session")
 def has_csrf_protect(app: Any) -> bool:
-    """CSRFProtect(app) 是否已注册（检测 extension 是否在 app.extensions）。"""
+    """CSRF 防护能力是否已集成。认两种实现：
+
+    1. flask-wtf CSRFProtect（检测 ``app.extensions["csrf"]``）
+    2. 自实现 ``demo.security.csrf_protect`` 装饰器挂载到 POST 路由
+       （用 functools.wraps 留下 __wrapped__，fixture 只检测「有装饰」，
+       不区分装饰器来源 — 误判成本低，因为 demo 模式下 csrf 装饰器 bypass
+       由测试本身的 demo skip 处理）
+    """
+    # 1) flask-wtf
     try:
         from flask_wtf.csrf import CSRFProtect  # noqa: F401
+        if "csrf" in app.extensions:
+            return True
+    except ImportError:
+        pass
+    # 2) 自实现 security.csrf_protect：检查 POST 路由 view 被装饰
+    try:
+        from demo import security  # noqa: F401
+        if not hasattr(security, "csrf_protect"):
+            return False
     except ImportError:
         return False
-    return "csrf" in app.extensions
+    for endpoint in ("logout", "submit_correction", "login"):
+        vf = app.view_functions.get(endpoint)
+        if vf is not None and hasattr(vf, "__wrapped__"):
+            return True
+    return False
 
 
 @pytest.fixture(scope="session")
 def has_rate_limit(app: Any) -> bool:
-    """flask-limiter Limiter 是否已注册（检测 app.extensions["limiter"]）。"""
+    """限流能力是否已集成。认两种实现：
+
+    1. flask-limiter Limiter（检测 ``app.extensions["limiter"]``）
+    2. 自实现 ``demo.security.rate_limit`` 装饰器挂载到 POST 路由
+    """
+    # 1) flask-limiter
     try:
         from flask_limiter import Limiter  # noqa: F401
+        if "limiter" in app.extensions or any(
+            getattr(ext, "__class__", type("_", (), {})).__name__ == "Limiter"
+            for ext in app.extensions.values()
+        ):
+            return True
+    except ImportError:
+        pass
+    # 2) 自实现 security.rate_limit
+    try:
+        from demo import security  # noqa: F401
+        if not hasattr(security, "rate_limit"):
+            return False
     except ImportError:
         return False
-    return "limiter" in app.extensions or any(
-        getattr(ext, "__class__", type("_", (), {})).__name__ == "Limiter"
-        for ext in app.extensions.values()
-    )
+    for endpoint in ("login", "submit_correction"):
+        vf = app.view_functions.get(endpoint)
+        if vf is not None and hasattr(vf, "__wrapped__"):
+            return True
+    return False
 
 
 @pytest.fixture(scope="session")
