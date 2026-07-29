@@ -1,0 +1,14 @@
+{
+  "name": "希沃智教π Demo",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "postCreateCommand": "cd Seewo-AI-Challenge && pip install -r requirements.txt",
+  "postStartCommand": "cd Seewo-AI-Challenge/demo && (python app.py > /tmp/seewo-demo.log 2>&1 &)",
+  "forwardPorts": [5000],
+  "portsAttributes": {
+    "5000": { "label": "希沃智教π Demo", "onAutoForward": "openBrowser" }
+  },
+  "customizations": {
+    "vscode": { "extensions": ["ms-python.python", "ms-toolsai.jupyter"] }
+  },
+  "remoteEnv": { "DEMO_AUTH_OPEN": "1" }
+}
