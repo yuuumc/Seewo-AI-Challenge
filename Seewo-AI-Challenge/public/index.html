@@ -71,7 +71,8 @@
     <p class="tag">希沃智教π —— AI 智能作业批改系统。模块化 AI 引擎 + 5 步推理链（OCR → 推理 → 知识图谱 → 诊断 → 策略）驱动，步骤级批改、苏格拉底式辅导、拍照即批改、批改即分析、分析即推送，覆盖作业完整闭环。</p>
     <div class="quote">"批改不应是教师的负担；分析不应停在分数；每个孩子的错题都该有下一步。"</div>
     <div class="ctas">
-      <a class="btn btn-primary" href="https://codespaces.new/yuuumc/Seewo-AI-Challenge?quickstart=1" target="_blank" rel="noopener">🚀 一键启动 Demo（Codespaces）</a>
+      <a class="btn btn-primary" href="https://seewo.researchkit.online" target="_blank" rel="noopener">🌐 在线体验 Demo（免安装）</a>
+      <a class="btn btn-ghost" href="https://codespaces.new/yuuumc/Seewo-AI-Challenge?quickstart=1" target="_blank" rel="noopener">🚀 Codespaces 一键启动</a>
       <a class="btn btn-ghost" href="https://github.com/yuuumc/Seewo-AI-Challenge" target="_blank" rel="noopener">★ GitHub 源码</a>
     </div>
     <div class="meta">
@@ -138,17 +139,23 @@
 
   <section id="quickstart">
     <h2>快速开始</h2>
-    <p class="sub">三种方式，任选其一。推荐「一键启动」——浏览器里点一下，30 秒出完整 Demo。</p>
+    <p class="sub">三种方式，任选其一。推荐「在线体验」——已部署上云，点开即用，无需任何安装。</p>
     <div class="features qs-grid">
       <div class="feat qs-card">
+        <div class="ic">🌐</div>
+        <h3>方式一 · 在线体验 <span style="font-size:11px;color:var(--acc)">已上线</span></h3>
+        <p>Demo 已部署在云服务器（gunicorn + HTTPS 证书），点开即用，无需安装任何环境。教师端 <code class="kbd">/teacher</code>，学生端 <code class="kbd">/student</code>，共 13 个页面。</p>
+        <a class="btn btn-primary qs-btn" href="https://seewo.researchkit.online" target="_blank" rel="noopener">进入在线 Demo →</a>
+      </div>
+      <div class="feat qs-card">
         <div class="ic">🚀</div>
-        <h3>方式一 · 一键启动（推荐）</h3>
-        <p>GitHub Codespaces 在云端拉起完整环境，自动安装依赖并启动 Demo，浏览器直接打开 <code class="kbd">localhost:5000</code> 即可体验 13 个页面。免费额度足够体验。</p>
-        <a class="btn btn-primary qs-btn" href="https://codespaces.new/yuuumc/Seewo-AI-Challenge?quickstart=1" target="_blank" rel="noopener">一键启动 Demo →</a>
+        <h3>方式二 · Codespaces 一键启动</h3>
+        <p>想在完整开发环境里改代码？GitHub Codespaces 云端拉起环境，自动安装依赖并启动 Demo，浏览器打开 <code class="kbd">localhost:5000</code> 即可。免费额度足够体验。</p>
+        <a class="btn btn-ghost qs-btn" href="https://codespaces.new/yuuumc/Seewo-AI-Challenge?quickstart=1" target="_blank" rel="noopener">一键启动环境 →</a>
       </div>
       <div class="feat qs-card">
         <div class="ic">💻</div>
-        <h3>方式二 · 本地运行</h3>
+        <h3>方式三 · 本地运行</h3>
         <p>克隆仓库、装 Flask、启动，浏览器打开 <code class="kbd">http://localhost:5000</code>。Windows 用户可双击 <code class="kbd">demo/start.bat</code> 一键启动。</p>
         <pre class="qs-copy" data-copy="git clone https://github.com/yuuumc/Seewo-AI-Challenge.git
 cd Seewo-AI-Challenge
@@ -157,12 +164,6 @@ cd demo && python app.py"><code>git clone https://github.com/yuuumc/Seewo-AI-Cha
 cd Seewo-AI-Challenge
 pip install -r requirements.txt
 cd demo && python app.py</code><button class="copy-btn" type="button">复制</button></pre>
-      </div>
-      <div class="feat qs-card">
-        <div class="ic">🌐</div>
-        <h3>方式三 · 在线体验 <span style="font-size:11px;color:var(--warn)">即将上线</span></h3>
-        <p>Demo 已部署在云服务器（gunicorn + 5 workers，本地验证 200），正在配置公网 HTTPS 域名。上线后无需安装任何环境，点击即用。</p>
-        <span class="btn btn-ghost qs-btn" style="opacity:.5;cursor:default">配置中…</span>
       </div>
     </div>
   </section>
