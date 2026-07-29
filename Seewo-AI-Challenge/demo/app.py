@@ -90,10 +90,18 @@ register_error_handlers(app)
 
 # ── Auth routes ───────────────────────────────────────────────────────
 @app.route("/login", methods=["GET", "POST"])
+@csrf_protect
 @rate_limit(max_per_minute=10)
 def login():
     """Login page + form post. Accepts either 'username' (preferred) or
     'email' (legacy) for forward-compat with the email-style SSO swap.
+
+    P0-3 安全 Blocker: 登录端点也加 CSRF 防护
+    - 防「登录 CSRF」: 攻击者诱骗已退出用户 POST 登录成攻击者账号,
+      一旦用户后续填了真实信息(地址/支付/敏感数据)就泄露给攻击者
+    - 登录页 GET 时 get_csrf_token() 已把 token 写 session, login.html
+      渲染为 hidden input, POST 时 csrf_protect 校验
+    - Demo 模式(DEMO_AUTH_OPEN=1)装饰器 bypass, 不影响 demo 跑通
     """
     if request.method == "POST":
         username = (
