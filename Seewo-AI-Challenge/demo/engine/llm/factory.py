@@ -67,7 +67,14 @@ def get_provider() -> LLMProvider:
     Selection rule:
 
         1. If ``LLM_API_KEY`` is non-empty -> :class:`OpenAIProvider`
+           (default OpenAI-compatible endpoint) OR
+           :class:`DeepSeekProvider` (when ``LLM_MODEL=deepseek-math``)
         2. Otherwise                       -> :class:`MockProvider`
+
+    C-08 DeepSeek-Math dispatch: triggered solely by
+    ``LLM_MODEL == "deepseek-math"`` (case-insensitive). Every other
+    value falls through to the original OpenAI path — default
+    behaviour is unchanged for unset / non-deepseek LLM_MODEL.
 
     The singleton is invalidated whenever any of the three
     env vars change. This makes the function safe to call in
@@ -88,6 +95,16 @@ def get_provider() -> LLMProvider:
         cfg = read_provider_config_from_env()
         if cfg is None:
             _PROVIDER = MockProvider()
+        elif cfg["model"].strip().lower() == "deepseek-math":
+            # C-08: dedicated DeepSeek-Math provider. Single env-only
+            # config source (no second Pydantic layer); default base_url
+            # is the DeepSeek official endpoint (LLM_BASE_URL overrides).
+            from engine.llm.deepseek_provider import (
+                DeepSeekProvider,
+                read_deepseek_config_from_env,
+            )
+
+            _PROVIDER = DeepSeekProvider(**read_deepseek_config_from_env())
         else:
             _PROVIDER = OpenAIProvider(
                 base_url=cfg["base_url"],

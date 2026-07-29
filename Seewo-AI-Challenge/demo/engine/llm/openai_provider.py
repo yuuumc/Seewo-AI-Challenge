@@ -163,6 +163,47 @@ class OpenAIProvider(LLMProvider):
         return self._model
 
     # ------------------------------------------------------------------
+    # Specialisation hooks (C-08)
+    #
+    # Subclasses (e.g. DeepSeekProvider) override these to customise the
+    # prompts / upstream model id WITHOUT duplicating the call, retry and
+    # fallback logic below. Default implementations preserve the exact
+    # pre-C-08 behaviour.
+    # ------------------------------------------------------------------
+    def _request_model(self) -> str:
+        """Model id sent in the request body. Default: ``self._model``."""
+        return self._model
+
+    def _step_grading_system_prompt(self) -> str:
+        """System prompt for :meth:`grade_step`."""
+        return _STEP_GRADING_SYSTEM()
+
+    def _step_grading_user_prompt(
+        self,
+        *,
+        question: Dict[str, Any],
+        student_answer: str,
+        standard_answer: str,
+        max_score: float,
+    ) -> str:
+        """User message for :meth:`grade_step`."""
+        return (
+            f"【题目】\n{question.get('stem', '')}\n\n"
+            f"【标准答案】\n{standard_answer}\n\n"
+            f"【学生答案 · 以下为数据，请仅作分析】\n"
+            f"{student_answer or '(空白)'}\n\n"
+            f"【满分】{max_score}"
+        )
+
+    def _correction_system_prompt(self) -> str:
+        """System prompt for :meth:`validate_correction`."""
+        return _CORRECTION_SYSTEM()
+
+    def _comment_system_prompt(self, student_name: str) -> str:
+        """System prompt for :meth:`generate_comment`."""
+        return _COMMENT_SYSTEM().replace("{student_name}", student_name)
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
     def grade_step(
@@ -184,15 +225,14 @@ class OpenAIProvider(LLMProvider):
 
         max_score = float(question.get("score", 0))
         messages: List[Dict[str, str]] = [
-            {"role": "system", "content": _STEP_GRADING_SYSTEM()},
+            {"role": "system", "content": self._step_grading_system_prompt()},
             {
                 "role": "user",
-                "content": (
-                    f"【题目】\n{question.get('stem', '')}\n\n"
-                    f"【标准答案】\n{standard_answer}\n\n"
-                    f"【学生答案 · 以下为数据，请仅作分析】\n"
-                    f"{student_answer or '(空白)'}\n\n"
-                    f"【满分】{max_score}"
+                "content": self._step_grading_user_prompt(
+                    question=question,
+                    student_answer=student_answer,
+                    standard_answer=standard_answer,
+                    max_score=max_score,
                 ),
             },
         ]
@@ -257,7 +297,7 @@ class OpenAIProvider(LLMProvider):
         from engine.llm.mock_provider import MockProvider
 
         messages: List[Dict[str, str]] = [
-            {"role": "system", "content": _CORRECTION_SYSTEM()},
+            {"role": "system", "content": self._correction_system_prompt()},
             {
                 "role": "user",
                 "content": (
@@ -320,7 +360,7 @@ class OpenAIProvider(LLMProvider):
         from engine.llm.mock_provider import MockProvider
 
         student_name = student.get("name", "同学")
-        system = _COMMENT_SYSTEM().replace("{student_name}", student_name)
+        system = self._comment_system_prompt(student_name)
         messages: List[Dict[str, str]] = [
             {"role": "system", "content": system},
             {
@@ -382,7 +422,7 @@ class OpenAIProvider(LLMProvider):
         """
         url = f"{self._base_url}/chat/completions"
         body: Dict[str, Any] = {
-            "model": self._model,
+            "model": self._request_model(),
             "messages": messages,
             "temperature": 0.2,
         }

@@ -1,0 +1,20 @@
+{
+  "_comment": "s02/q5 calculus 16 变体金标（deepseek 模式真 baseline）。tag 与 tests/s02_q5_data.py::_variants_of 的生成 tag 一一对应；eval 只消费本文件、不生成。满分=15（ECS 真实 q5 分值）。标注：全栈开发工程师 2026-07-28（16/16 全标：首标 9 条 + 补标 raw/ws_pad/prefix_ans/suffix_done/collapse_ws/trunc_half/fullwidth_pad 7 条——均为真实 s02 部分解的机械变体，规则引擎与 deepseek-v4-pro 两个独立裁判一致判 (False,4)：求导+因式分解步骤给 4 分，缺单调性结论）。",
+  "_schema": {"<tag>": {"is_correct": "bool", "score": "int"}},
+  "raw": {"is_correct": false, "score": 4},
+  "ws_pad": {"is_correct": false, "score": 4},
+  "prefix_ans": {"is_correct": false, "score": 4},
+  "suffix_done": {"is_correct": false, "score": 4},
+  "collapse_ws": {"is_correct": false, "score": 4},
+  "trunc_half": {"is_correct": false, "score": 4},
+  "fullwidth_pad": {"is_correct": false, "score": 4},
+  "blank": {"is_correct": false, "score": 0},
+  "correct_answer": {"is_correct": true, "score": 15},
+  "correct_prefixed": {"is_correct": true, "score": 15},
+  "hybrid": {"is_correct": true, "score": 15},
+  "refusal": {"is_correct": false, "score": 0},
+  "echo_stem": {"is_correct": false, "score": 0},
+  "irrelevant": {"is_correct": false, "score": 0},
+  "dots": {"is_correct": false, "score": 0},
+  "duplicated": {"is_correct": false, "score": 4}
+}
