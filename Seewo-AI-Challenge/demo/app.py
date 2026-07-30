@@ -561,6 +561,11 @@ def teacher_create_homework_submit():
     if not questions:
         return jsonify({"ok": False, "feedback": "至少需要一道题目"}), 400
 
+    # Ensure each question has subject_type (default: math_calculation for backward compat)
+    for q in questions:
+        if not q.get("subject_type"):
+            q["subject_type"] = "math_calculation"
+
     knowledge_points = [kp.strip() for kp in knowledge_points_str.split(",") if kp.strip()]
 
     # Generate hw_key: hw_<timestamp>

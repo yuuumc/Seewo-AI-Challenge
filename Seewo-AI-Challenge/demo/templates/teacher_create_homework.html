@@ -124,11 +124,19 @@ function addQuestion(data) {
         <i data-lucide="trash-2" class="w-4 h-4"></i>
       </button>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
       <select class="q_type px-3 py-2 rounded-lg border border-gray-200 text-sm" onchange="onTypeChange(this, ${qCounter})">
         <option value="choice" ${q.type==='choice'?'selected':''}>选择题</option>
         <option value="fill_blank" ${q.type==='fill_blank'?'selected':''}>填空题</option>
         <option value="long_answer" ${q.type==='long_answer'?'selected':''}>解答题</option>
+      </select>
+      <select class="q_subject_type px-3 py-2 rounded-lg border border-gray-200 text-sm" title="学科类型（决定 LLM 批改 prompt）">
+        <option value="math_calculation" ${(q.subject_type||'math_calculation')==='math_calculation'?'selected':''}>数学计算</option>
+        <option value="chinese_essay" ${q.subject_type==='chinese_essay'?'selected':''}>语文作文</option>
+        <option value="english_cloze" ${q.subject_type==='english_cloze'?'selected':''}>英语完形</option>
+        <option value="english_essay" ${q.subject_type==='english_essay'?'selected':''}>英语作文</option>
+        <option value="physics_short" ${q.subject_type==='physics_short'?'selected':''}>物理简答</option>
+        <option value="chemistry_short" ${q.subject_type==='chemistry_short'?'selected':''}>化学简答</option>
       </select>
       <input type="number" class="q_score px-3 py-2 rounded-lg border border-gray-200 text-sm w-full"
         placeholder="分值" value="${q.score||5}" min="1" max="100" oninput="updateTotal()">
@@ -175,6 +183,7 @@ function collectQuestions() {
     questions.push({
       id: 'q' + questions.length + 1,
       type: row.querySelector('.q_type').value,
+      subject_type: row.querySelector('.q_subject_type').value,
       stem: row.querySelector('.q_stem').value,
       score: parseInt(row.querySelector('.q_score').value) || 0,
       knowledge: row.querySelector('.q_knowledge').value,

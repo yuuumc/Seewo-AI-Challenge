@@ -23,6 +23,7 @@ for p in (_DEMO_DIR, _REPO_ROOT):
         sys.path.insert(0, sp)
 
 from _helpers import get_csrf_token, login
+from engine.grader import load_json
 
 
 def _ensure_login(client):
@@ -178,3 +179,105 @@ class TestListAllHomeworks:
         homeworks = _list_all_homeworks()
         hw_keys = [hw["hw_key"] for hw in homeworks]
         assert "hw_001" in hw_keys
+
+
+class TestSubjectType:
+    """Test subject_type field in homework creation (Sprint 2 follow-up)."""
+
+    def test_create_homework_with_subject_type(self, client):
+        """POST with subject_type in questions should persist it."""
+        _ensure_login(client)
+        token = get_csrf_token(client)
+        questions_payload = json.dumps([
+            {"id": "q1", "type": "long_answer", "subject_type": "physics_short",
+             "stem": "一质量为 2kg 的物体在水平面上受 10N 拉力做匀加速运动，求加速度。",
+             "score": 10, "knowledge": "牛顿第二定律", "answer": "a=5 m/s²"},
+        ])
+        resp = client.post("/teacher/homework/create", data={
+            "title": "物理测试_学科类型",
+            "subject": "物理",
+            "grade": "高二",
+            "knowledge_points": "牛顿第二定律",
+            "target_class": "高二(1)班",
+            "deadline": "2026-08-15T22:00",
+            "questions_json": questions_payload,
+            "csrf_token": token,
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        hw_key = data["hw_key"]
+
+        # Verify the saved homework has subject_type in question dict
+        all_hw = load_json("questions.json")
+        assert hw_key in all_hw
+        saved_q = all_hw[hw_key]["questions"][0]
+        assert saved_q["subject_type"] == "physics_short"
+
+    def test_create_homework_defaults_subject_type(self, client):
+        """Questions without subject_type should default to math_calculation."""
+        _ensure_login(client)
+        token = get_csrf_token(client)
+        questions_payload = json.dumps([
+            {"id": "q1", "type": "choice", "stem": "1+1=?", "score": 5,
+             "knowledge": "算术", "answer": "B"},
+        ])
+        resp = client.post("/teacher/homework/create", data={
+            "title": "默认学科类型测试",
+            "subject": "数学",
+            "grade": "高一",
+            "knowledge_points": "算术",
+            "target_class": "高一(1)班",
+            "deadline": "",
+            "questions_json": questions_payload,
+            "csrf_token": token,
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        hw_key = data["hw_key"]
+
+        all_hw = load_json("questions.json")
+        saved_q = all_hw[hw_key]["questions"][0]
+        assert saved_q["subject_type"] == "math_calculation"
+
+    def test_create_homework_mixed_subject_types(self, client):
+        """Multiple questions with different subject_types should all persist."""
+        _ensure_login(client)
+        token = get_csrf_token(client)
+        questions_payload = json.dumps([
+            {"id": "q1", "type": "long_answer", "subject_type": "chinese_essay",
+             "stem": "以《秋日》为题写一篇 800 字作文", "score": 40,
+             "knowledge": "写作", "answer": ""},
+            {"id": "q2", "type": "long_answer", "subject_type": "chemistry_short",
+             "stem": "写出氢气在氧气中燃烧的化学方程式", "score": 10,
+             "knowledge": "化学反应", "answer": "2H₂+O₂→2H₂O"},
+        ])
+        resp = client.post("/teacher/homework/create", data={
+            "title": "混合学科测试",
+            "subject": "综合",
+            "grade": "高二",
+            "knowledge_points": "写作, 化学反应",
+            "target_class": "高二(1)班",
+            "deadline": "",
+            "questions_json": questions_payload,
+            "csrf_token": token,
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        hw_key = data["hw_key"]
+
+        all_hw = load_json("questions.json")
+        questions = all_hw[hw_key]["questions"]
+        assert questions[0]["subject_type"] == "chinese_essay"
+        assert questions[1]["subject_type"] == "chemistry_short"
+
+    def test_create_form_has_subject_type_dropdown(self, client):
+        """GET form should include subject_type dropdown options."""
+        _ensure_login(client)
+        resp = client.get("/teacher/homework/create")
+        assert resp.status_code == 200
+        assert b"q_subject_type" in resp.data
+        assert b"physics_short" in resp.data
+        assert b"chinese_essay" in resp.data
+        assert b"math_calculation" in resp.data
