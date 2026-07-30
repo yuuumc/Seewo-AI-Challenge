@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from _helpers import DEMO_ACCOUNTS, require_integration
+from _helpers import DEMO_ACCOUNTS, require_integration, login, logout
 
 
 # ── 1. 登录 smoke ────────────────────────────────────────────────────
@@ -28,11 +28,7 @@ def test_demo_account_login(
     """所有 8 个演示账号都能登录成功（POST /login 200 + session 含 user_id）。"""
     require_integration(has_login, "/login 路由")
     account = DEMO_ACCOUNTS[account_key]
-    rv = client.post(
-        "/login",
-        data={"username": account["username"], "password": account["password"]},
-        follow_redirects=False,
-    )
+    rv = login(client, account["username"], account["password"])
     assert rv.status_code in (200, 302), f"{account_key} login got {rv.status_code}"
     # 登录后 session 应包含 user_id（leader 的 engine.auth.py 约定）
     with client.session_transaction() as sess:
@@ -46,11 +42,7 @@ def test_demo_account_login(
 def test_login_with_wrong_password(client: Any, has_login: bool) -> None:
     """错误密码必须被拒（不能绕过 demo 模式随便进）。"""
     require_integration(has_login, "/login 路由")
-    rv = client.post(
-        "/login",
-        data={"username": "teacher", "password": "WRONG"},
-        follow_redirects=False,
-    )
+    rv = login(client, "teacher", "WRONG")
     # 200（带 flash 错误消息）或 401 都算合规；302 到 login 页也算
     assert rv.status_code in (200, 302, 401), f"unexpected status {rv.status_code}"
     with client.session_transaction() as sess:
@@ -63,10 +55,7 @@ def test_student_cannot_access_teacher_dashboard(
 ) -> None:
     """student 登录后访问 /teacher 应被 RBAC 拒绝（403 / 302）。"""
     require_integration(has_login, "/login 路由 + RBAC 装饰器")
-    client.post(
-        "/login",
-        data={"username": "s01", "password": "student123"},
-    )
+    login(client, "s01", "student123")
     rv = client.get("/teacher", follow_redirects=False)
     assert rv.status_code in (302, 403), (
         f"student 访问 /teacher 应被拒，实际 status={rv.status_code}"
@@ -78,10 +67,7 @@ def test_teacher_cannot_access_admin_console(
 ) -> None:
     """teacher 访问 /admin 应被 RBAC 拒绝。"""
     require_integration(has_login, "/login 路由 + RBAC 装饰器")
-    client.post(
-        "/login",
-        data={"username": "teacher", "password": "teacher123"},
-    )
+    login(client, "teacher", "teacher123")
     rv = client.get("/admin", follow_redirects=False)
     # /admin 可能压根没注册（404 也算被拒）
     assert rv.status_code in (302, 403, 404), (
@@ -96,10 +82,7 @@ def test_student_idor_blocked(client: Any, has_login: bool) -> None:
     攻击路径：s01 登录后直接 GET /student/s02/dashboard（自己的学生 ID 才能看自己的）。
     """
     require_integration(has_login, "/login 路由 + 授权装饰器")
-    client.post(
-        "/login",
-        data={"username": "s01", "password": "student123"},
-    )
+    login(client, "s01", "student123")
     rv = client.get("/student/s02/dashboard", follow_redirects=False)
     # 期望：403（RBAC 拦截）或 302（重定向回自己的页）
     assert rv.status_code in (302, 403), (
@@ -123,10 +106,7 @@ def test_anonymous_idor_blocked(client: Any) -> None:
 def test_logout_clears_session(client: Any, has_login: bool, has_logout: bool) -> None:
     """登录 → 登出 → session.user_id 应清空。"""
     require_integration(has_login and has_logout, "/login + /logout 路由")
-    client.post(
-        "/login",
-        data={"username": "teacher", "password": "teacher123"},
-    )
-    client.post("/logout", follow_redirects=False)
+    login(client, "teacher", "teacher123")
+    logout(client)
     with client.session_transaction() as sess:
         assert not sess.get("user_id"), "登出后 session.user_id 应清空"

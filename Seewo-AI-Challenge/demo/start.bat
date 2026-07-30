@@ -7,6 +7,9 @@ echo     Seewo AI Grading Pi -- Homework Grading System Demo
 echo ============================================================
 echo.
 
+REM MIG-02: 显式开启 demo 模式（绕过 CSRF / 鉴权 / 限流），便于本地演示
+set DEMO_AUTH_OPEN=1
+
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo [X] Python not found. Install Python 3.10+ first.

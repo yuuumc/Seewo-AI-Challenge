@@ -15,9 +15,10 @@ Phase 0 安全加固版（2026-07-28）：
   - base.html 顶栏登录态偏件（_nav_user.html）
 
 Demo 模式约定（与 tests/_helpers.py / test_grading_flow.py 对齐）：
-  * ``DEMO_AUTH_OPEN=1``（默认）— 匿名可读所有 GET 页面，登录后才走
-    RBAC / IDOR 校验。
-  * ``DEMO_AUTH_OPEN=0`` — 生产模式：所有受保护路由必须先登录。
+  * ``DEMO_AUTH_OPEN=0``（默认，生产安全）— 所有受保护路由必须先登录，
+    CSRF / 限流严格启用。
+  * ``DEMO_AUTH_OPEN=1`` — 演示/本地开发：匿名可读所有 GET 页面，登录后
+    才走 RBAC / IDOR 校验（需显式开启）。
 
 Usage:
   pip install flask
@@ -27,7 +28,7 @@ Usage:
 环境变量：
   SECRET_KEY         Flask session key（生产必设；开发用 DEMO_SECRET）
   DEMO_SECRET        开发态 fallback secret
-  DEMO_AUTH_OPEN     "1"（默认）/ "0"：demo 模式允许匿名读
+  DEMO_AUTH_OPEN     "0"（默认，生产安全）/ "1"（演示模式，需显式开启）
   LLM_API_KEY        设了走真 LLM，未设走 mock 引擎
   LLM_BASE_URL       OpenAI 兼容 base URL（默认 https://api.openai.com/v1）
   LLM_MODEL          模型名（默认 gpt-4o-mini）
@@ -102,6 +103,7 @@ def login():
     - 登录页 GET 时 get_csrf_token() 已把 token 写 session, login.html
       渲染为 hidden input, POST 时 csrf_protect 校验
     - Demo 模式(DEMO_AUTH_OPEN=1)装饰器 bypass, 不影响 demo 跑通
+    - MIG-02: 默认 DEMO_AUTH_OPEN=0（生产安全），demo 需显式开启
     """
     if request.method == "POST":
         username = (

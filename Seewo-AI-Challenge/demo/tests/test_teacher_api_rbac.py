@@ -15,6 +15,7 @@ import os
 from typing import Any
 
 import pytest
+from _helpers import login, logout
 
 # —— 4 个被收紧的 API 端点（与 app.py 装饰器链对应） ——
 _TEACHER_ONLY_APIS: list[str] = [
@@ -35,10 +36,7 @@ def _require_strict_auth() -> None:
 def test_student_blocked_from_teacher_apis(client: Any) -> None:
     """学生登录后访问 4 个教师 API 应全部 403/302/404/405（任何非 200 都算合规）."""
     # —— 1. 学生登录 ——
-    rv = client.post(
-        "/login",
-        data={"username": "s01", "password": "student123"},
-    )
+    rv = login(client, "s01", "student123")
     assert rv.status_code in (200, 302), f"s01 login failed: {rv.status_code}"
 
     # —— 2. 逐个访问教师 API ——
@@ -52,10 +50,7 @@ def test_student_blocked_from_teacher_apis(client: Any) -> None:
 
 def test_teacher_can_access_teacher_apis(client: Any) -> None:
     """教师登录后访问 4 个教师 API 应不被 RBAC 拦截（200 或 5xx 服务端问题，不应 403）."""
-    rv = client.post(
-        "/login",
-        data={"username": "teacher", "password": "teacher123"},
-    )
+    rv = login(client, "teacher", "teacher123")
     assert rv.status_code in (200, 302), f"teacher login failed: {rv.status_code}"
 
     for api_path in _TEACHER_ONLY_APIS:
@@ -70,10 +65,10 @@ def test_teacher_can_access_teacher_apis(client: Any) -> None:
 def test_admin_can_access_teacher_apis(client: Any) -> None:
     """admin / head 角色也应不被拦截（与 teacher 等同权限）."""
     for username, password in [("head", "head123"), ("admin", "admin123")]:
-        client.post("/login", data={"username": username, "password": password})
+        login(client, username, password)
         for api_path in _TEACHER_ONLY_APIS:
             rv = client.get(api_path)
             assert rv.status_code not in (401, 403), (
                 f"❌ {api_path} {username} 也被拦截 (status={rv.status_code})"
             )
-        client.post("/logout")
+        logout(client)

@@ -15,6 +15,17 @@ import json
 from typing import Any
 
 import pytest
+import os
+
+
+# ── MIG-01: prod 模式自动登录（让"页面渲染"测试在 prod 模式也跑通）─────
+@pytest.fixture(autouse=True)
+def _prod_auto_login(client: Any) -> None:
+    """prod 模式（DEMO_AUTH_OPEN=0）下自动登录 teacher，
+    让"页面渲染"类测试聚焦渲染而非鉴权。鉴权测试在 test_auth / test_idor 里覆盖。"""
+    if os.environ.get("DEMO_AUTH_OPEN", "0") == "0":
+        from _helpers import login
+        login(client, "teacher", "teacher123")
 
 # ── 1. 关键 GET 页面渲染 ─────────────────────────────────────────────
 PUBLIC_GET_ROUTES = [
@@ -81,9 +92,11 @@ def test_correction_submit_objective_correct(client: Any) -> None:
     choice_q = next((q for q in questions if q["type"] == "choice"), None)
     if not choice_q:
         pytest.skip("hw_001 无选择题 — 当前 demo 数据未含此题型")
+    from _helpers import get_csrf_token
+    token = get_csrf_token(client)
     rv = client.post(
         "/student/s01/correction/submit",
-        json={"question_id": choice_q["id"], "correction_text": choice_q["answer"]},
+        json={"question_id": choice_q["id"], "correction_text": choice_q["answer"], "csrf_token": token},
     )
     assert rv.status_code == 200
     payload = rv.get_json()
@@ -99,9 +112,11 @@ def test_correction_submit_objective_wrong(client: Any) -> None:
     choice_q = next((q for q in questions if q["type"] == "choice"), None)
     if not choice_q:
         pytest.skip("hw_001 无选择题")
+    from _helpers import get_csrf_token
+    token = get_csrf_token(client)
     rv = client.post(
         "/student/s01/correction/submit",
-        json={"question_id": choice_q["id"], "correction_text": "WRONG_ANSWER_XYZ"},
+        json={"question_id": choice_q["id"], "correction_text": "WRONG_ANSWER_XYZ", "csrf_token": token},
     )
     assert rv.status_code == 200
     payload = rv.get_json()
@@ -111,9 +126,11 @@ def test_correction_submit_objective_wrong(client: Any) -> None:
 
 def test_correction_submit_empty_text_rejected(client: Any) -> None:
     """空订正文本必须被拒（接口契约：empty → 400 / 200 + ok=False）。"""
+    from _helpers import get_csrf_token
+    token = get_csrf_token(client)
     rv = client.post(
         "/student/s01/correction/submit",
-        json={"question_id": "q1", "correction_text": ""},
+        json={"question_id": "q1", "correction_text": "", "csrf_token": token},
     )
     # app.py 当前实现：空文本 → 200 + ok=False, feedback="请输入订正内容"
     # 集成后可能改为 400；两者都接受

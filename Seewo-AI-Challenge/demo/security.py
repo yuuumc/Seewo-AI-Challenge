@@ -19,13 +19,14 @@ What lives here:
     * ``DEMO_USERS``  - 8 demo accounts (4 roles + 5 students; aligned
                         with the test harness in tests/_helpers.py)
 
-Demo-mode contract (driven by env, default ON for the demo deploy):
-    * ``DEMO_AUTH_OPEN=1`` (default) — anonymous GETs allowed;
+Demo-mode contract (driven by env, default OFF for production safety):
+    * ``DEMO_AUTH_OPEN=0`` (default) — production-style: every protected
+      route requires auth, CSRF + rate-limit strictly enforced.
+    * ``DEMO_AUTH_OPEN=1`` — demo/showcase mode: anonymous GETs allowed,
       auth decorators only enforce when a user is actually logged in.
-      This matches the test contract in test_grading_flow.py that the
-      demo must render all pages with zero env vars.
-    * ``DEMO_AUTH_OPEN=0`` — production-style: every protected route
-      requires auth.
+      Set explicitly via env (e.g. ``demo/start.sh``) for local demos.
+      The test harness in tests/conftest.py also sets it for demo-mode
+      test runs (production-style prod-mode tests use ``DEMO_AUTH_OPEN=0``).
 
 These are intentionally simple and readable; the unit tests in
 ``tests/test_security.py`` exercise the surface.
@@ -43,6 +44,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 from typing import Callable, Optional
 
+import bcrypt
 from flask import (
     abort,
     current_app,
@@ -63,10 +65,10 @@ from flask import (
 def _demo_open() -> bool:
     """Demo mode: bypass CSRF + rate-limit + auth for the demo deploy.
 
-    Default ON (env var unset == "1"). Set ``DEMO_AUTH_OPEN=0`` to enable
-    the production-grade enforcement (CSRF, rate-limit, auth required).
+    MIG-02: Default OFF (env var unset == "0"). Set ``DEMO_AUTH_OPEN=1``
+    to enable the demo bypass for showcases. Production never sets this.
     """
-    return os.environ.get("DEMO_AUTH_OPEN", "1") != "0"
+    return os.environ.get("DEMO_AUTH_OPEN", "0") != "0"
 
 
 # Kept for backward compat with the original name
@@ -77,10 +79,11 @@ def _demo_auth_open() -> bool:  # noqa: D401
 # ---------------------------------------------------------------------------
 # Demo user table (Phase 0 placeholder; Phase 1 swaps to real SSO)
 # ---------------------------------------------------------------------------
-# Passwords are stored as SHA-256 hashes of (password + email) so the demo
-# never has plaintext secrets in source. The 8 accounts align 1:1 with
-# tests/_helpers.py:DEMO_ACCOUNTS, which the test harness uses to verify
-# login + role + IDOR behavior.
+# Passwords are stored as bcrypt hashes (cost=12, per-user salt). MIG-03
+# replaced the prior SHA-256 + hardcoded salt scheme. Phase 1 should move
+# to a real user store with argon2id (preferred) and per-user work factors.
+# The 8 accounts align 1:1 with tests/_helpers.py:DEMO_ACCOUNTS, which the
+# test harness uses to verify login + role + IDOR behavior.
 DEMO_USERS: dict = {
     "teacher": {
         "name": "李老师",
@@ -130,9 +133,32 @@ DEMO_USERS: dict = {
 }
 
 
-def _hash_password(password: str, salt: str = "seewo-demo-salt") -> str:
-    """SHA-256 over (password + username+salt) — demo-only; production must use bcrypt/argon2."""
-    return hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
+def _hash_password(password: str) -> str:
+    """Hash a password using bcrypt (cost=12). Production-safe.
+
+    MIG-03: Replaced SHA-256 + hardcoded salt with bcrypt.
+    bcrypt handles per-hash salt internally; no external salt needed.
+    """
+    return bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt(rounds=12)
+    ).decode("utf-8")
+
+
+def _verify_password(password: str, password_hash: str) -> bool:
+    """Verify a password against a bcrypt hash.
+
+    MIG-03: Replaced ``hmac.compare_digest(sha256(...), sha256(...))`` with
+    ``bcrypt.checkpw`` which is constant-time and salt-aware.
+    """
+    if not password_hash:
+        return False
+    try:
+        return bcrypt.checkpw(
+            password.encode("utf-8"), password_hash.encode("utf-8")
+        )
+    except (ValueError, TypeError):
+        # Malformed hash (e.g. legacy SHA-256 from pre-MIG-03)
+        return False
 
 
 def _seed_demo_passwords() -> None:
@@ -305,8 +331,7 @@ def login_user(username: str, password: str) -> Optional[dict]:
     if not user:
         return None
     expected = user.get("password_hash", "")
-    actual = _hash_password(password)
-    if not hmac.compare_digest(expected, actual):
+    if not _verify_password(password, expected):
         return None
     session.clear()
     session["user_id"] = username
@@ -325,9 +350,10 @@ def logout_user() -> None:
 def login_required(fn: Callable) -> Callable:
     """Reject anonymous access with a redirect to /login (HTML) or 401 (JSON).
 
-    Demo mode (DEMO_AUTH_OPEN=1, the default): when no user is in the
-    session, the call passes through so anonymous readers can browse the
-    demo. This matches the test contract in test_grading_flow.py.
+    Demo mode (DEMO_AUTH_OPEN=1, set explicitly via start.sh/conftest):
+    when no user is in the session, the call passes through so anonymous
+    readers can browse the demo. Production (default DEMO_AUTH_OPEN=0)
+    always requires login.
     """
 
     @functools.wraps(fn)

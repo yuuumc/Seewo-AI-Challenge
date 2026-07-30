@@ -3,6 +3,9 @@
 #
 # P0-1 安全 Blocker：生产/对外演示优先用 gunicorn（多 worker 防单点崩溃），
 # 本地开发可退回 python3 app.py（仅 127.0.0.1，已防 RCE）。
+#
+# MIG-02: 默认 DEMO_AUTH_OPEN=0（生产安全默认）。本脚本显式开启 demo bypass，
+# 适合比赛演示/本地开发。生产部署切勿复用本脚本（应走 demo/../Dockerfile / gunicorn）。
 
 echo ""
 echo "  ╔══════════════════════════════════════════╗"
@@ -10,6 +13,9 @@ echo "  ║     希沃智教π — AI智能作业批改系统       ║"
 echo "  ║              Demo 启动中...               ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo ""
+
+# MIG-02: 显式开启 demo 模式（绕过 CSRF / 鉴权 / 限流），便于本地演示
+export DEMO_AUTH_OPEN=1
 
 # Check Python
 if ! command -v python3 &> /dev/null; then

@@ -42,11 +42,18 @@ if str(_TESTS_DIR) not in sys.path:
 # 清空 LLM 相关 env，确保 get_provider()（P1 阶段由编排工程师接入）返回 MockProvider
 @pytest.fixture(autouse=True, scope="session")
 def _force_demo_mode() -> None:
-    """全局 autouse session fixture：清空 LLM_* env，强制走 mock 降级路径。"""
+    """全局 autouse session fixture：清空 LLM_* env，强制走 mock 降级路径。
+
+    MIG-02: DEMO_AUTH_OPEN 默认值已从 "1" 改为 "0"（生产安全默认）。
+    测试默认在 demo 模式跑（79 passed 基线），prod 模式测试用
+    DEMO_AUTH_OPEN=0 环境变量显式触发。
+    """
     for key in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
         os.environ.pop(key, None)
-    # 如果 leader 在 app.py 里读 FLASK_ENV，强制 production
     os.environ["FLASK_ENV"] = "production"
+    # MIG-02: 测试默认 demo 模式（除非外部显式设 DEMO_AUTH_OPEN=0）
+    if "DEMO_AUTH_OPEN" not in os.environ:
+        os.environ["DEMO_AUTH_OPEN"] = "1"
 
 
 # ── Flask app / test client ─────────────────────────────────────────
@@ -73,6 +80,39 @@ def app() -> Any:
 def client(app: Any) -> Any:
     """Flask test client — 每次测试 fresh 一个，无状态共享。"""
     return app.test_client()
+
+
+# ── Rate limit 重置（MIG-01: prod 模式测试隔离）───────────────────────
+@pytest.fixture(autouse=True)
+def _reset_rate_limit_buckets() -> None:
+    """每个测试前/后重置 _RL_BUCKETS，避免 9 个登录测试串联撞限流（10/min）。
+
+    根因：prod 模式（DEMO_AUTH_OPEN=0）下 @rate_limit 装饰器激活，且
+    security._RL_BUCKETS 是 module-level dict，跨测试共享。
+
+    ⚠️ 模块身份陷阱：app.py 用 ``from security import rate_limit``（无包前缀），
+    ``demo/tests/_helpers.py`` 既有 ``import security`` 也有 ``from demo import security``。
+    两套 import 会得到不同 module 对象，dict 也不一样。fixture 必须清两个：
+      1. 顶层 ``security._RL_BUCKETS``（app.py 路由装饰器实际用的）
+      2. ``demo.security._RL_BUCKETS``（helpers / 其他代码可能 import 的）
+
+    生产环境不走这条路径（autouse 仅 pytest 收集时触发）。
+    """
+    for mod_name in ("security", "demo.security"):
+        try:
+            mod = __import__(mod_name, fromlist=["_RL_BUCKETS"])
+            if hasattr(mod, "_RL_BUCKETS"):
+                mod._RL_BUCKETS.clear()
+        except ImportError:
+            pass
+    yield
+    for mod_name in ("security", "demo.security"):
+        try:
+            mod = __import__(mod_name, fromlist=["_RL_BUCKETS"])
+            if hasattr(mod, "_RL_BUCKETS"):
+                mod._RL_BUCKETS.clear()
+        except ImportError:
+            pass
 
 
 # ── 集成状态检测（leader PR 是否落地）────────────────────────────────

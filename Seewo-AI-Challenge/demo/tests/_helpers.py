@@ -26,3 +26,47 @@ def require_integration(condition: bool, item: str) -> None:
     """统一 xfail 文案 — leader 集成后 grep `TODO(leader-integration)` 即可看清单。"""
     if not condition:
         pytest.xfail(f"TODO(leader-integration): {item} 尚未集成")
+
+
+# ── 登录 / 登出 / CSRF helper（MIG-01: prod 模式 36 fail 收口）─────────
+# 根因：prod 模式（DEMO_AUTH_OPEN=0）下 @csrf_protect 拦截无 token 的 POST，
+# 导致 test_auth / test_grading_flow / test_teacher_api_rbac 全部 fail。
+# 修复：login() 先 GET /login 触发 CSRF token 生成，再 POST 带 token。
+
+
+def get_csrf_token(client) -> str:
+    """从 Flask test client 的 session 中读取当前 CSRF token。"""
+    with client.session_transaction() as sess:
+        return sess.get("_csrf", "")
+
+
+def login(client, username: str, password: str):
+    """带 CSRF token 的登录 helper。
+
+    流程：GET /login → Jinja csrf_token() 生成 session["_csrf"] →
+    读取 token → POST /login 带 csrf_token 字段。
+
+    在 demo 模式（DEMO_AUTH_OPEN=1）和 prod 模式（DEMO_AUTH_OPEN=0）下都能用。
+    返回 Flask response 对象。
+    """
+    client.get("/login")  # 触发 CSRF token 生成
+    token = get_csrf_token(client)
+    return client.post(
+        "/login",
+        data={
+            "username": username,
+            "password": password,
+            "csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+
+
+def logout(client):
+    """带 CSRF token 的登出 helper。"""
+    token = get_csrf_token(client)
+    return client.post(
+        "/logout",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
