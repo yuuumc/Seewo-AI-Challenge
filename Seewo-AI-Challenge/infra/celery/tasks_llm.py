@@ -56,10 +56,28 @@ def grade_long_answer_task(
     try:
         # —— P0-4: 用 asyncio.to_thread 派发 LLM 同步调用 ——
         async def _call_llm() -> dict:
-            # Week 2 stub：直接调 mock；Week 3 替换为真实 LLM 客户端
-            from engine.grader import grade_long_answer
+            # Sprint 2: 走 grade_long_answer_with_trace 以接入 provider 链
+            # （按 subject_type 选 prompt + trace 记录）
+            from engine.grader import grade_long_answer_with_trace
+            # 从 questions.json 取完整 question dict（含 subject_type 如果有）
+            try:
+                from engine.grader import load_json
+                questions = load_json("questions.json")
+                question = None
+                for hw in questions.values():
+                    for q in hw.get("questions", []):
+                        if q.get("id") == question_id:
+                            question = q
+                            break
+                    if question:
+                        break
+                if question is None:
+                    question = {"id": question_id, "type": "long_answer"}
+            except Exception:
+                question = {"id": question_id, "type": "long_answer"}
+
             return await asyncio.to_thread(
-                grade_long_answer, student_answer, {"id": question_id}, student_id
+                grade_long_answer_with_trace, student_answer, question, student_id
             )
 
         result = _run_async(_call_llm())
@@ -90,21 +108,28 @@ def ocr_extract_task(
     self,
     image_b64: str,
     question_id: str = "unknown",
+    question_type: str = "long_answer",
 ) -> dict:
-    """OCR 识别图片。Week 2 stub；Week 3 接 PaddleOCR / 通义千问VL.
+    """OCR 识别图片 — Sprint 2 接入 PaddleOCR.
 
-    走 llm 队列。
+    走 llm 队列。PaddleOCR 不可用时自动回退到 MockOCREngine，
+    返回占位文本（不崩溃）。
     """
     start = time.monotonic()
     try:
         async def _call_ocr() -> dict:
-            # Week 2 stub：返回空文本；Week 3 替换为 PaddleOCR
-            await asyncio.sleep(0.1)  # 模拟网络延迟
-            return {"text": "", "confidence": 0.0, "provider": "stub"}
+            from engine.ocr import extract_text
+            return await asyncio.to_thread(
+                extract_text, image_b64, question_type
+            )
 
         result = _run_async(_call_ocr())
         result["question_id"] = question_id
         result["latency_ms"] = int((time.monotonic() - start) * 1000)
+        logger.info(
+            "ocr_extract done q=%s provider=%s latency=%dms",
+            question_id, result.get("provider"), result["latency_ms"],
+        )
         return result
     except Exception as exc:
         logger.exception("ocr_extract failed question_id=%s", question_id)

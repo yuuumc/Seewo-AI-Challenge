@@ -106,4 +106,74 @@
     </div>
   </div>
 </div>
+
+<!-- OCR Answer Upload (Sprint 2) -->
+<div class="mt-5 content-card" data-aos="fade-up">
+  <div class="content-card-header">
+    <span class="content-card-title">拍照上传答卷</span>
+    <span class="score-pill good">AI 识别</span>
+  </div>
+  <div class="p-4">
+    <p class="text-sm text-gray-500 mb-4">上传手写答卷照片，AI 自动识别并批改。支持 JPG / PNG，≤4 MB。</p>
+    <div class="flex flex-col gap-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <select id="ocr_question_type" class="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-primary-300 focus:outline-none">
+          <option value="long_answer">解答题</option>
+          <option value="choice">选择题</option>
+          <option value="fill_blank">填空题</option>
+        </select>
+        <input type="text" id="ocr_question_id" placeholder="题目 ID（如 q5）" class="flex-1 min-w-[120px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-primary-300 focus:outline-none">
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <input type="file" id="ocr_file_input" accept="image/jpeg,image/png" class="text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100">
+        <button id="ocr_upload_btn" class="px-5 py-2 bg-primary-400 hover:bg-primary-500 text-white font-bold rounded-lg text-sm transition-colors flex items-center gap-2">
+          <i data-lucide="upload" class="w-4 h-4"></i> 识别并批改
+        </button>
+      </div>
+      <div id="ocr_result_area" class="hidden p-4 rounded-xl bg-gray-50 border border-gray-100">
+        <div class="text-xs font-bold text-gray-400 mb-2">OCR 识别结果</div>
+        <pre id="ocr_text" class="text-sm text-gray-700 whitespace-pre-wrap break-all"></pre>
+        <div id="ocr_grade_area" class="mt-3 hidden">
+          <div class="text-xs font-bold text-gray-400 mb-2">批改结果</div>
+          <pre id="ocr_grade_text" class="text-sm text-gray-700 whitespace-pre-wrap break-all"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var btn = document.getElementById('ocr_upload_btn');
+  if (!btn) return;
+  btn.addEventListener('click', function() {
+    var fileInput = document.getElementById('ocr_file_input');
+    if (!fileInput.files.length) { alert('请先选择图片'); return; }
+    var qType = document.getElementById('ocr_question_type').value;
+    var qId = document.getElementById('ocr_question_id').value;
+    var formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('question_type', qType);
+    formData.append('question_id', qId);
+    formData.append('student_id', '{{ data.student.id }}');
+    btn.disabled = true;
+    btn.textContent = '识别中…';
+    fetch('/api/ocr/grade', { method: 'POST', body: formData })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var area = document.getElementById('ocr_result_area');
+        area.classList.remove('hidden');
+        document.getElementById('ocr_text').textContent =
+          'Provider: ' + (data.ocr_result && data.ocr_result.provider || '?') +
+          '\nConfidence: ' + (data.ocr_result && data.ocr_result.confidence || 0) +
+          '\n\n识别文本:\n' + (data.ocr_result && data.ocr_result.text || '(空)');
+        var gradeArea = document.getElementById('ocr_grade_area');
+        gradeArea.classList.remove('hidden');
+        document.getElementById('ocr_grade_text').textContent = JSON.stringify(data.grade_result, null, 2);
+      })
+      .catch(function(err) { alert('上传失败: ' + err.message); })
+      .finally(function() { btn.disabled = false; btn.textContent = '识别并批改'; });
+  });
+})();
+</script>
 {% endblock %}

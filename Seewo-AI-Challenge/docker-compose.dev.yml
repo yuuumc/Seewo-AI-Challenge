@@ -1,0 +1,12 @@
+# Dev override: expose PG & Redis ports for local development.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
+#
+# Production (docker-compose.yml) intentionally does NOT expose ports (P0-1).
+# This override is for dev/test only — never use in production.
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+  redis:
+    ports:
+      - "6379:6379"

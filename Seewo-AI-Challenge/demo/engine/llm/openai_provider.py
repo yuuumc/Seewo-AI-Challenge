@@ -48,10 +48,18 @@ try:
         load_math_step_grading as _load_step_grading,
         load_correction_validation as _load_correction,
         load_comment_generation as _load_comment,
+        get_prompt as _get_subject_prompt,
+        list_subject_types as _list_subject_types,
     )
     _PROMPTS_AVAILABLE = True
 except Exception:  # pragma: no cover - defensive for legacy deploys
     _PROMPTS_AVAILABLE = False
+
+    def _get_subject_prompt(subject_type: str) -> str:  # type: ignore[no-redef]
+        raise KeyError(f"prompts package not available; cannot resolve subject_type={subject_type!r}")
+
+    def _list_subject_types() -> list:  # type: ignore[no-redef]
+        return []
 
     def _load_step_grading() -> str:  # type: ignore[no-redef]
         return """你是一名经验丰富的高中数学老师，擅长对解答题进行步骤级批改。
@@ -174,8 +182,23 @@ class OpenAIProvider(LLMProvider):
         """Model id sent in the request body. Default: ``self._model``."""
         return self._model
 
-    def _step_grading_system_prompt(self) -> str:
-        """System prompt for :meth:`grade_step`."""
+    def _step_grading_system_prompt(self, question: Optional[Dict[str, Any]] = None) -> str:
+        """System prompt for :meth:`grade_step`.
+
+        Sprint 2: when ``question`` carries a ``subject_type`` field,
+        dispatch to the corresponding multi-subject prompt via
+        ``prompts.get_prompt(subject_type)`` instead of the hardcoded
+        math prompt. Falls back to ``math_step_grading`` when
+        ``subject_type`` is absent (backward compat with Sprint 1
+        questions that only have ``type``).
+        """
+        if question is not None:
+            st = question.get("subject_type")
+            if st and _PROMPTS_AVAILABLE:
+                try:
+                    return _get_subject_prompt(st)
+                except KeyError:
+                    pass  # unknown subject_type → fall back to math
         return _STEP_GRADING_SYSTEM()
 
     def _step_grading_user_prompt(
@@ -225,7 +248,7 @@ class OpenAIProvider(LLMProvider):
 
         max_score = float(question.get("score", 0))
         messages: List[Dict[str, str]] = [
-            {"role": "system", "content": self._step_grading_system_prompt()},
+            {"role": "system", "content": self._step_grading_system_prompt(question=question)},
             {
                 "role": "user",
                 "content": self._step_grading_user_prompt(

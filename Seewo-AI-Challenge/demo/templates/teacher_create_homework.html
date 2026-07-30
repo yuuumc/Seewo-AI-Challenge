@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}创建作业 — 希沃智教π{% endblock %}
+{% block nav %}
+  {% set active = 'create' %}{% include "_nav_teacher.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 animate-slide-up">
+  <h1 class="text-2xl font-extrabold text-gray-900">创建作业</h1>
+  <p class="text-sm text-gray-400 mt-1">选学科、录题目、设定分值，发布到指定班级</p>
+</div>
+
+<form id="createHomeworkForm" class="space-y-6 max-w-4xl">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <!-- 基本信息 -->
+  <div class="content-card">
+    <div class="content-card-header">
+      <span class="content-card-title">基本信息</span>
+    </div>
+    <div class="p-6 space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-1">作业标题 <span class="text-red-500">*</span></label>
+          <input type="text" name="title" id="hw_title" required
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+            placeholder="例：函数单调性与导数 · 课后作业">
+        </div>
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-1">学科</label>
+          <select name="subject" id="hw_subject"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-400">
+            <option value="数学">数学</option>
+            <option value="语文">语文</option>
+            <option value="英语">英语</option>
+            <option value="物理">物理</option>
+            <option value="化学">化学</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-1">年级</label>
+          <select name="grade" id="hw_grade"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-400">
+            <option value="高一">高一</option>
+            <option value="高二" selected>高二</option>
+            <option value="高三">高三</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-1">目标班级</label>
+          <select name="target_class" id="hw_class"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-400">
+            {% for c in classes %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-1">截止时间</label>
+          <input type="datetime-local" name="deadline" id="hw_deadline"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-400">
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-bold text-gray-700 mb-1">知识点标签（逗号分隔）</label>
+        <input type="text" name="knowledge_points" id="hw_kp"
+          class="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-400"
+          placeholder="例：导数的计算, 利用导数判断函数单调性, 含参函数分类讨论">
+      </div>
+    </div>
+  </div>
+
+  <!-- 题目录入 -->
+  <div class="content-card">
+    <div class="content-card-header">
+      <span class="content-card-title">题目列表</span>
+      <button type="button" onclick="addQuestion()" class="btn btn-primary btn-sm">
+        <i data-lucide="plus" class="w-4 h-4"></i> 添加题目
+      </button>
+    </div>
+    <div id="questionsList" class="p-6 space-y-4">
+      <!-- 动态题目行 -->
+    </div>
+    <div id="emptyState" class="p-12 text-center text-gray-400">
+      <i data-lucide="file-plus" class="w-12 h-12 mx-auto mb-3 opacity-40"></i>
+      <p class="text-sm">点击「添加题目」开始录入</p>
+    </div>
+  </div>
+
+  <!-- 提交 -->
+  <div class="flex items-center gap-3">
+    <button type="submit" class="btn btn-primary">
+      <i data-lucide="send" class="w-4 h-4"></i> 发布作业
+    </button>
+    <a href="/teacher" class="btn btn-outline">取消</a>
+    <span id="totalScore" class="text-sm text-gray-400 ml-auto">总分：0 分</span>
+  </div>
+</form>
+
+<!-- 消息提示 -->
+<div id="msgBox" class="fixed bottom-6 right-6 hidden p-4 rounded-xl shadow-lg z-50 max-w-sm">
+  <p id="msgText" class="text-sm font-medium"></p>
+</div>
+
+<script>
+let qCounter = 0;
+
+function addQuestion(data) {
+  qCounter++;
+  const list = document.getElementById('questionsList');
+  const empty = document.getElementById('emptyState');
+  if (empty) empty.style.display = 'none';
+
+  const q = data || { id: 'q' + qCounter, type: 'choice', stem: '', score: 5, knowledge: '' };
+  const div = document.createElement('div');
+  div.className = 'border border-gray-100 rounded-xl p-4 bg-gray-50/50 space-y-3';
+  div.id = 'q_row_' + qCounter;
+  div.innerHTML = `
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-bold text-gray-400">题目 ${qCounter}</span>
+      <button type="button" onclick="removeQuestion(${qCounter})" class="text-red-400 hover:text-red-600 text-sm">
+        <i data-lucide="trash-2" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+      <select class="q_type px-3 py-2 rounded-lg border border-gray-200 text-sm" onchange="onTypeChange(this, ${qCounter})">
+        <option value="choice" ${q.type==='choice'?'selected':''}>选择题</option>
+        <option value="fill_blank" ${q.type==='fill_blank'?'selected':''}>填空题</option>
+        <option value="long_answer" ${q.type==='long_answer'?'selected':''}>解答题</option>
+      </select>
+      <input type="number" class="q_score px-3 py-2 rounded-lg border border-gray-200 text-sm w-full"
+        placeholder="分值" value="${q.score||5}" min="1" max="100" oninput="updateTotal()">
+      <input type="text" class="q_knowledge px-3 py-2 rounded-lg border border-gray-200 text-sm sm:col-span-2"
+        placeholder="知识点" value="${q.knowledge||''}">
+    </div>
+    <textarea class="q_stem w-full px-3 py-2 rounded-lg border border-gray-200 text-sm" rows="2"
+      placeholder="题干（支持 LaTeX 公式）">${q.stem||''}</textarea>
+    <div id="q_options_${qCounter}" class="${q.type==='choice'?'':'hidden'} space-y-2">
+      <input type="text" class="q_answer w-full px-3 py-2 rounded-lg border border-gray-200 text-sm"
+        placeholder="正确答案（选择题填 A/B/C/D，填空题填答案，解答题填参考解答）" value="${q.answer||''}">
+    </div>
+  `;
+  list.appendChild(div);
+  if (window.lucide) lucide.createIcons();
+  updateTotal();
+}
+
+function removeQuestion(id) {
+  const row = document.getElementById('q_row_' + id);
+  if (row) row.remove();
+  if (document.getElementById('questionsList').children.length === 0) {
+    document.getElementById('emptyState').style.display = '';
+  }
+  updateTotal();
+}
+
+function onTypeChange(sel, id) {
+  // Answer field stays the same, just placeholder changes
+  updateTotal();
+}
+
+function updateTotal() {
+  let total = 0;
+  document.querySelectorAll('.q_score').forEach(el => {
+    total += parseInt(el.value) || 0;
+  });
+  document.getElementById('totalScore').textContent = `总分：${total} 分`;
+}
+
+function collectQuestions() {
+  const questions = [];
+  document.querySelectorAll('[id^="q_row_"]').forEach(row => {
+    questions.push({
+      id: 'q' + questions.length + 1,
+      type: row.querySelector('.q_type').value,
+      stem: row.querySelector('.q_stem').value,
+      score: parseInt(row.querySelector('.q_score').value) || 0,
+      knowledge: row.querySelector('.q_knowledge').value,
+      answer: row.querySelector('.q_answer').value,
+    });
+  });
+  return questions;
+}
+
+document.getElementById('createHomeworkForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const questions = collectQuestions();
+  if (questions.length === 0) {
+    showMsg('至少需要一道题目', 'error');
+    return;
+  }
+
+  const formData = new FormData(e.target);
+  formData.set('questions_json', JSON.stringify(questions));
+
+  try {
+    const resp = await fetch('/teacher/homework/create', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      showMsg(data.message || '作业创建成功', 'success');
+      setTimeout(() => { window.location.href = data.redirect || '/teacher'; }, 1500);
+    } else {
+      showMsg(data.feedback || '创建失败', 'error');
+    }
+  } catch (err) {
+    showMsg('网络错误：' + err.message, 'error');
+  }
+});
+
+function showMsg(text, type) {
+  const box = document.getElementById('msgBox');
+  const el = document.getElementById('msgText');
+  el.textContent = text;
+  box.className = 'fixed bottom-6 right-6 p-4 rounded-xl shadow-lg z-50 max-w-sm ' +
+    (type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700');
+  box.classList.remove('hidden');
+  setTimeout(() => box.classList.add('hidden'), 4000);
+}
+
+// Add one default question on load
+addQuestion();
+if (window.lucide) lucide.createIcons();
+</script>
+{% endblock %}

@@ -147,13 +147,16 @@ def index():
 @login_required
 @roles_required("teacher", "head", "admin")
 def teacher_dashboard():
-    """Teacher main dashboard — assignment overview."""
+    """Teacher main dashboard — multi-homework overview (V1.0 Sprint 2)."""
     students = load_json("students.json")["students"]
-    questions = load_json("questions.json")["hw_001"]
+    homeworks = _list_all_homeworks()
+    # Default assignment for backward compat (first or hw_001)
+    default_hw = homeworks[0] if homeworks else None
     return render_template(
         "teacher_dashboard.html",
         students=students,
-        assignment=questions,
+        assignment=default_hw,
+        homeworks=homeworks,
     )
 
 
@@ -463,6 +466,165 @@ def student_growth(student_id):
     return render_template("student_growth.html", data=data)
 
 
+# ── V1.0 Sprint 2: 作业创建/组卷 ─────────────────────────────────────
+def _list_all_homeworks():
+    """List all homeworks from PG (if available) or JSON fallback."""
+    homeworks = []
+    pg_ok = False
+    try:
+        from db_store import is_pg_available
+        if is_pg_available():
+            from infra.pg.orm import Homework
+            from sqlalchemy import create_engine, select
+            from sqlalchemy.orm import Session
+            from db_store import _get_sync_db_url
+            engine = create_engine(_get_sync_db_url())
+            with Session(engine) as s:
+                rows = s.execute(select(Homework).order_by(Homework.created_at.desc())).scalars().all()
+                homeworks = [
+                    {
+                        "hw_key": r.hw_key,
+                        "title": r.title,
+                        "subject": r.subject,
+                        "grade": r.grade,
+                        "knowledge_points": r.knowledge_points,
+                        "questions": r.questions,
+                        "question_count": len(r.questions),
+                        "total_score": sum(q.get("score", 0) for q in r.questions),
+                    }
+                    for r in rows
+                ]
+            pg_ok = True
+    except Exception:
+        pass
+
+    if not pg_ok:
+        # Fallback: load from JSON
+        all_hw = load_json("questions.json")
+        for hw_key, hw_data in all_hw.items():
+            questions = hw_data.get("questions", [])
+            homeworks.append({
+                "hw_key": hw_key,
+                "title": hw_data.get("title", ""),
+                "subject": hw_data.get("subject", "数学"),
+                "grade": hw_data.get("grade", ""),
+                "knowledge_points": hw_data.get("knowledge_points", []),
+                "questions": questions,
+                "question_count": len(questions),
+                "total_score": sum(q.get("score", 0) for q in questions),
+            })
+
+    return homeworks
+
+
+@app.route("/teacher/homework/create", methods=["GET"])
+@login_required
+@roles_required("teacher", "head", "admin")
+def teacher_create_homework_form():
+    """Render the create homework page."""
+    students = load_json("students.json")["students"]
+    classes = sorted(set(s["class"] for s in students))
+    return render_template("teacher_create_homework.html", classes=classes)
+
+
+@app.route("/teacher/homework/create", methods=["POST"])
+@login_required
+@roles_required("teacher", "head", "admin")
+@csrf_protect
+@rate_limit(max_per_minute=10)
+def teacher_create_homework_submit():
+    """Handle homework creation form submission.
+
+    Creates a new homework in PG (if available) or in-memory JSON.
+    Supports: subject, grade, title, knowledge_points, questions (dynamic list),
+    target_class, deadline.
+    """
+    import json as _json
+    from datetime import datetime
+
+    title = request.form.get("title", "").strip()
+    subject = request.form.get("subject", "数学").strip()
+    grade = request.form.get("grade", "").strip()
+    knowledge_points_str = request.form.get("knowledge_points", "").strip()
+    target_class = request.form.get("target_class", "").strip()
+    deadline = request.form.get("deadline", "").strip()
+    questions_json = request.form.get("questions_json", "[]")
+
+    if not title:
+        return jsonify({"ok": False, "feedback": "作业标题不能为空"}), 400
+
+    try:
+        questions = _json.loads(questions_json)
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "feedback": "题目数据格式错误"}), 400
+
+    if not questions:
+        return jsonify({"ok": False, "feedback": "至少需要一道题目"}), 400
+
+    knowledge_points = [kp.strip() for kp in knowledge_points_str.split(",") if kp.strip()]
+
+    # Generate hw_key: hw_<timestamp>
+    hw_key = f"hw_{int(datetime.utcnow().timestamp())}"
+
+    audit_log("homework_create", title=title, hw_key=hw_key,
+              subject=subject, question_count=len(questions), target_class=target_class)
+
+    # Try PG first
+    saved_to_pg = False
+    try:
+        from db_store import is_pg_available
+        if is_pg_available():
+            from infra.pg.orm import Homework
+            from sqlalchemy import create_engine
+            from sqlalchemy.orm import Session
+            from db_store import _get_sync_db_url
+            engine = create_engine(_get_sync_db_url())
+            with Session(engine) as s:
+                hw = Homework(
+                    hw_key=hw_key,
+                    title=title,
+                    subject=subject,
+                    grade=grade or None,
+                    knowledge_points=knowledge_points,
+                    questions=questions,
+                )
+                s.add(hw)
+                s.commit()
+            saved_to_pg = True
+    except Exception as e:
+        audit_log("homework_create_pg_error", error=str(e))
+
+    if saved_to_pg:
+        return jsonify({
+            "ok": True,
+            "hw_key": hw_key,
+            "redirect": f"/teacher/grade/{hw_key}",
+            "message": f"作业「{title}」已创建并保存到数据库",
+        })
+
+    # Fallback: save to in-memory questions.json structure (demo mode)
+    all_hw = load_json("questions.json")
+    all_hw[hw_key] = {
+        "id": hw_key,
+        "title": title,
+        "subject": subject,
+        "grade": grade,
+        "knowledge_points": knowledge_points,
+        "questions": questions,
+    }
+    # Write back to JSON file (demo mode persistence)
+    _data_dir = os.path.join(os.path.dirname(__file__), "data")
+    with open(os.path.join(_data_dir, "questions.json"), "w", encoding="utf-8") as f:
+        _json.dump(all_hw, f, ensure_ascii=False, indent=2)
+
+    return jsonify({
+        "ok": True,
+        "hw_key": hw_key,
+        "redirect": f"/teacher/grade/{hw_key}",
+        "message": f"作业「{title}」已创建（演示模式，保存到 JSON）",
+    })
+
+
 # ── 订正闭环看板 ───────────────────────────────────────────────────────
 @app.route("/teacher/correction-loop/<assignment_id>")
 @login_required
@@ -613,6 +775,112 @@ def readyz():
 
     resp = make_response(jsonify(body), 200 if ready else 503)
     return resp
+
+
+# ── OCR Upload (Sprint 2) ─────────────────────────────────────────────
+@app.route("/api/ocr/upload", methods=["POST"])
+@login_required
+def api_ocr_upload():
+    """学生上传答卷图片 → OCR 识别 → 返回结构化文本.
+
+    Accepts multipart/form-data with:
+        - file: image file (jpg/png)
+        - question_type: "choice" | "fill_blank" | "long_answer"
+        - question_id: optional question id
+
+    Returns JSON: {text, confidence, provider, lines, question_type, question_id}
+    Falls back to mock OCR when PaddleOCR unavailable (no crash).
+    """
+    import base64
+
+    from engine.ocr import extract_text
+
+    # Get question_type (default long_answer)
+    question_type = request.form.get("question_type", "long_answer")
+    question_id = request.form.get("question_id", "unknown")
+
+    # Read image file
+    if "file" not in request.files:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    file = request.files["file"]
+    if not file.filename:
+        return jsonify({"error": "empty filename"}), 400
+
+    # Read bytes and encode to base64 for the OCR engine
+    image_bytes = file.read()
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    result = extract_text(image_b64, question_type)
+    result["question_id"] = question_id
+    return jsonify(result)
+
+
+@app.route("/api/ocr/grade", methods=["POST"])
+@login_required
+def api_ocr_grade():
+    """学生上传答卷图片 → OCR 识别 → 直接走 grading 流程.
+
+    Accepts multipart/form-data with:
+        - file: image file (jpg/png)
+        - question_type: "choice" | "fill_blank" | "long_answer"
+        - question_id: question id
+        - student_id: student id
+
+    Returns JSON: {ocr_result, grade_result}
+    """
+    import base64
+
+    from engine.ocr import extract_text
+
+    question_type = request.form.get("question_type", "long_answer")
+    question_id = request.form.get("question_id", "")
+    student_id = request.form.get("student_id", "")
+
+    if "file" not in request.files:
+        return jsonify({"error": "no file uploaded"}), 400
+
+    file = request.files["file"]
+    if not file.filename:
+        return jsonify({"error": "empty filename"}), 400
+
+    image_bytes = file.read()
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    # Step 1: OCR
+    ocr_result = extract_text(image_b64, question_type)
+    student_answer = ocr_result.get("text", "")
+
+    # Step 2: Grade using the recognized text
+    questions = load_json("questions.json")
+    # Try to find the question across all assignments
+    question = None
+    assignment_id = "hw_001"
+    for aid, assignment in questions.items():
+        for q in assignment.get("questions", []):
+            if q["id"] == question_id:
+                question = q
+                assignment_id = aid
+                break
+        if question:
+            break
+
+    if not question:
+        # Fallback: create a minimal question dict
+        question = {"id": question_id, "type": question_type, "score": 10,
+                     "answer": "", "steps": [], "knowledge": ""}
+
+    if question_type == "choice":
+        grade_result = grade_choice(student_answer, question.get("answer", ""), question)
+    elif question_type == "fill_blank":
+        grade_result = grade_fill_blank(student_answer, question.get("answer", ""), question)
+    else:
+        grade_result = grade_long_answer(student_answer, question, student_id)
+
+    return jsonify({
+        "ocr_result": ocr_result,
+        "grade_result": grade_result,
+    })
 
 
 if __name__ == "__main__":

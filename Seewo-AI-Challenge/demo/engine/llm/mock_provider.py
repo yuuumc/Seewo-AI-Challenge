@@ -17,6 +17,76 @@ from typing import Any, Dict, Optional
 from engine.llm.base import LLMProvider, TraceCollector
 
 
+def _mock_multi_subject_grade(
+    question: Dict[str, Any],
+    student_answer: str,
+    student_id: str,
+) -> Dict[str, Any] | None:
+    """Sprint 2: produce a structured mock result for non-math subjects.
+
+    Uses the ``MOCK_SAMPLES`` fixtures from ``tests._multi_subject_fixtures``
+    to return an ``expected_analysis``-shaped dict when the question's
+    ``subject_type`` matches one of the 6 non-math subjects. Returns
+    ``None`` when no fixture matches, so the caller falls back to the
+    rule engine.
+
+    The returned dict is shape-compatible with ``grade_long_answer()``:
+    ``type`` / ``is_correct`` / ``score`` / ``max_score`` /
+    ``step_results`` / ``error_types`` / ``ai_confidence`` /
+    ``overall_feedback`` / ``need_teacher_review`` / ``student_answer``
+    / ``correct_answer``.
+    """
+    subject_type = question.get("subject_type")
+    if not subject_type:
+        return None
+
+    try:
+        from tests._multi_subject_fixtures import MOCK_SAMPLES
+    except ImportError:
+        return None
+
+    # Find a fixture matching this subject_type
+    sample = None
+    for s in MOCK_SAMPLES:
+        if s["subject_type"] == subject_type:
+            sample = s
+            break
+    if sample is None:
+        return None
+
+    ea = sample["expected_analysis"]
+    max_score = float(question.get("score", sample["max_score"]))
+
+    # Determine score: count correct steps, proportional to max_score
+    step_results = ea["step_results"]
+    correct_count = sum(1 for sr in step_results if sr.get("correct"))
+    total_steps = len(step_results)
+    if total_steps > 0:
+        ratio = correct_count / total_steps
+    else:
+        ratio = 0.0
+    # Full score only if all steps correct and no error types
+    is_correct = len(ea["error_types"]) == 0 and correct_count == total_steps
+    if is_correct:
+        score = max_score
+    else:
+        score = round(max_score * ratio, 1)
+
+    return {
+        "type": "long_answer",
+        "student_answer": student_answer,
+        "correct_answer": question.get("answer", ""),
+        "is_correct": is_correct,
+        "score": score,
+        "max_score": max_score,
+        "step_results": step_results,
+        "error_types": list(ea["error_types"]),
+        "ai_confidence": ea["confidence"],
+        "overall_feedback": ea["overall_feedback"],
+        "need_teacher_review": ea.get("need_teacher_review", False),
+    }
+
+
 class MockProvider(LLMProvider):
     """Rule-engine-backed provider. Zero network, zero external deps.
 
@@ -50,6 +120,12 @@ class MockProvider(LLMProvider):
         ``standard_answer`` is accepted for API symmetry with the real
         provider but ignored here - the rule engine reads
         ``question["answer"]`` directly.
+
+        Sprint 2: when ``question.subject_type`` is set and is not
+        ``math_calculation``, use the multi-subject mock fixtures to
+        return a structured result matching that subject's expected
+        analysis shape. This lets the full chain be tested in mock
+        mode for all 7 subjects without a real LLM key.
         """
         # Local import keeps the engine.llm package importable in
         # environments where the wider engine is not on the path
@@ -57,7 +133,16 @@ class MockProvider(LLMProvider):
         from engine import grader
 
         started = time.time()
-        result = grader.grade_long_answer(student_answer, question, student_id)
+
+        # Sprint 2: multi-subject mock dispatch
+        subject_type = question.get("subject_type")
+        result = None
+        if subject_type and subject_type != "math_calculation":
+            result = _mock_multi_subject_grade(question, student_answer, student_id)
+
+        if result is None:
+            result = grader.grade_long_answer(student_answer, question, student_id)
+
         duration_ms = round((time.time() - started) * 1000.0, 2)
 
         if trace is not None:
@@ -68,6 +153,7 @@ class MockProvider(LLMProvider):
                     "student_id": student_id,
                     "student_answer_length": len(student_answer or ""),
                     "expected_answer_length": len(standard_answer or ""),
+                    "subject_type": subject_type or "math_calculation",
                 },
                 output_payload={
                     "is_correct": result.get("is_correct"),

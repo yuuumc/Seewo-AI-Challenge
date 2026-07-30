@@ -121,8 +121,23 @@ class DeepSeekProvider(OpenAIProvider):
         """Upstream model id for the request body (see ``api_model``)."""
         return self._api_model
 
-    def _step_grading_system_prompt(self) -> str:
-        """DeepSeek-Math-tuned step-grading prompt (see module docstring)."""
+    def _step_grading_system_prompt(self, question: Optional[Dict[str, Any]] = None) -> str:
+        """DeepSeek-Math-tuned step-grading prompt (see module docstring).
+
+        Sprint 2: when ``question`` carries a ``subject_type`` field,
+        dispatch to the corresponding multi-subject prompt via
+        ``prompts.get_prompt(subject_type)`` (same as OpenAIProvider).
+        Falls back to the DeepSeek-Math-tuned prompt when
+        ``subject_type`` is absent or is ``math_calculation``.
+        """
+        if question is not None:
+            st = question.get("subject_type")
+            if st and st != "math_calculation":
+                try:
+                    from prompts import get_prompt as _get_subject_prompt
+                    return _get_subject_prompt(st)
+                except (KeyError, ImportError):
+                    pass  # fall through to DeepSeek math prompt
         return _STEP_GRADING_SYSTEM_DEEPSEEK
 
     def _step_grading_user_prompt(

@@ -4,13 +4,22 @@
     "title": "函数单调性与导数 · 课后作业",
     "subject": "数学",
     "grade": "高二",
-    "knowledge_points": ["导数的计算", "利用导数判断函数单调性", "含参函数分类讨论"],
+    "knowledge_points": [
+      "导数的计算",
+      "利用导数判断函数单调性",
+      "含参函数分类讨论"
+    ],
     "questions": [
       {
         "id": "q1",
         "type": "choice",
         "stem": "函数 f(x) = x³ - 3x 的单调递增区间是？",
-        "options": ["A. (-∞, -1)", "B. (-1, 1)", "C. (1, +∞)", "D. (-∞, -1) 和 (1, +∞)"],
+        "options": [
+          "A. (-∞, -1)",
+          "B. (-1, 1)",
+          "C. (1, +∞)",
+          "D. (-∞, -1) 和 (1, +∞)"
+        ],
         "answer": "D",
         "score": 5,
         "knowledge": "利用导数判断函数单调性"
@@ -19,7 +28,12 @@
         "id": "q2",
         "type": "choice",
         "stem": "已知 f'(x) > 0 对任意 x∈R 恒成立，则 f(x) 在 R 上？",
-        "options": ["A. 单调递增", "B. 单调递减", "C. 有最大值", "D. 无法确定"],
+        "options": [
+          "A. 单调递增",
+          "B. 单调递减",
+          "C. 有最大值",
+          "D. 无法确定"
+        ],
         "answer": "A",
         "score": 5,
         "knowledge": "导数的几何意义"
@@ -48,10 +62,26 @@
         "score": 15,
         "knowledge": "含参函数分类讨论",
         "steps": [
-          {"step": 1, "content": "求导：f'(x) = 3x² - 6ax + 3a²", "score": 4},
-          {"step": 2, "content": "化简：f'(x) = 3(x² - 2ax + a²) = 3(x-a)²", "score": 4},
-          {"step": 3, "content": "判断：由(x-a)²≥0得f'(x)≥0恒成立", "score": 4},
-          {"step": 4, "content": "结论：f(x)在R上单调递增", "score": 3}
+          {
+            "step": 1,
+            "content": "求导：f'(x) = 3x² - 6ax + 3a²",
+            "score": 4
+          },
+          {
+            "step": 2,
+            "content": "化简：f'(x) = 3(x² - 2ax + a²) = 3(x-a)²",
+            "score": 4
+          },
+          {
+            "step": 3,
+            "content": "判断：由(x-a)²≥0得f'(x)≥0恒成立",
+            "score": 4
+          },
+          {
+            "step": 4,
+            "content": "结论：f(x)在R上单调递增",
+            "score": 3
+          }
         ]
       },
       {
@@ -62,12 +92,112 @@
         "score": 15,
         "knowledge": "利用导数判断函数单调性",
         "steps": [
-          {"step": 1, "content": "求导：f'(x) = x² - 2x", "score": 3},
-          {"step": 2, "content": "令f'(x)=0，解得x=0或x=2", "score": 3},
-          {"step": 3, "content": "分析：在(0,2)上f'(x)=x(x-2)<0，f(x)单调递减", "score": 4},
-          {"step": 4, "content": "判断：f(x)在[0,2]上单调，与参数a无关", "score": 3},
-          {"step": 5, "content": "结论：不存在满足条件的a", "score": 2}
+          {
+            "step": 1,
+            "content": "求导：f'(x) = x² - 2x",
+            "score": 3
+          },
+          {
+            "step": 2,
+            "content": "令f'(x)=0，解得x=0或x=2",
+            "score": 3
+          },
+          {
+            "step": 3,
+            "content": "分析：在(0,2)上f'(x)=x(x-2)<0，f(x)单调递减",
+            "score": 4
+          },
+          {
+            "step": 4,
+            "content": "判断：f(x)在[0,2]上单调，与参数a无关",
+            "score": 3
+          },
+          {
+            "step": 5,
+            "content": "结论：不存在满足条件的a",
+            "score": 2
+          }
         ]
+      }
+    ]
+  },
+  "hw_1785368215": {
+    "id": "hw_1785368215",
+    "title": "测试作业_Sprint2",
+    "subject": "数学",
+    "grade": "高一",
+    "knowledge_points": [
+      "算术",
+      "加法"
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "type": "choice",
+        "stem": "1+1=?",
+        "score": 5,
+        "knowledge": "算术",
+        "answer": "B"
+      }
+    ]
+  },
+  "hw_1785368372": {
+    "id": "hw_1785368372",
+    "title": "测试作业_Sprint2",
+    "subject": "数学",
+    "grade": "高一",
+    "knowledge_points": [
+      "算术",
+      "加法"
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "type": "choice",
+        "stem": "1+1=?",
+        "score": 5,
+        "knowledge": "算术",
+        "answer": "B"
+      }
+    ]
+  },
+  "hw_1785368422": {
+    "id": "hw_1785368422",
+    "title": "测试作业_Sprint2",
+    "subject": "数学",
+    "grade": "高一",
+    "knowledge_points": [
+      "算术",
+      "加法"
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "type": "choice",
+        "stem": "1+1=?",
+        "score": 5,
+        "knowledge": "算术",
+        "answer": "B"
+      }
+    ]
+  },
+  "hw_1785368453": {
+    "id": "hw_1785368453",
+    "title": "测试作业_Sprint2",
+    "subject": "数学",
+    "grade": "高一",
+    "knowledge_points": [
+      "算术",
+      "加法"
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "type": "choice",
+        "stem": "1+1=?",
+        "score": 5,
+        "knowledge": "算术",
+        "answer": "B"
       }
     ]
   }

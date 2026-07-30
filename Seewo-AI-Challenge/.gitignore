@@ -30,3 +30,4 @@ node_modules/
 # Misc
 *.b64
 /tmp/
+sprint2-ocr.patch

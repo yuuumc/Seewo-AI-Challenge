@@ -7,24 +7,55 @@
 {% block content %}
 <div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-slide-up">
   <div>
-    <h1 class="text-2xl font-extrabold text-gray-900">{{ assignment.title }}</h1>
-    <p class="text-sm text-gray-400 mt-1">{{ assignment.subject }} · {{ assignment.grade }} · {{ assignment.questions|length }}题 · 满分50分</p>
+    <h1 class="text-2xl font-extrabold text-gray-900">作业管理</h1>
+    <p class="text-sm text-gray-400 mt-1">{% if homeworks %}{{ homeworks|length }} 份作业 · {{ students|length }} 名学生{% else %}暂无作业{% endif %}</p>
   </div>
   <div class="flex items-center gap-2">
-    <a href="/teacher/grade/hw_001" class="btn btn-primary"><i data-lucide="sparkles" class="w-4 h-4"></i> 开始AI批改</a>
-    <a href="/teacher/analytics/hw_001" class="btn btn-outline btn-sm"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> 学情分析</a>
+    <a href="/teacher/homework/create" class="btn btn-primary"><i data-lucide="plus" class="w-4 h-4"></i> 创建作业</a>
+    {% if assignment %}
+    <a href="/teacher/grade/{{ assignment.hw_key }}" class="btn btn-outline btn-sm"><i data-lucide="sparkles" class="w-4 h-4"></i> 开始AI批改</a>
+    {% endif %}
   </div>
 </div>
 
+{% if homeworks and homeworks|length > 1 %}
+<!-- 多作业列表 -->
+<div class="content-card mb-6">
+  <div class="content-card-header"><span class="content-card-title">所有作业</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>作业名称</th><th>学科</th><th>年级</th><th>题数</th><th>总分</th><th>知识点</th><th>操作</th></tr></thead>
+      <tbody>
+        {% for hw in homeworks %}
+        <tr>
+          <td class="font-bold text-sm">{{ hw.title }}</td>
+          <td><span class="score-pill good text-xs">{{ hw.subject }}</span></td>
+          <td class="text-sm text-gray-500">{{ hw.grade or '-' }}</td>
+          <td class="font-bold">{{ hw.question_count }}</td>
+          <td class="font-bold">{{ hw.total_score }}分</td>
+          <td class="text-xs text-gray-500">{{ hw.knowledge_points|length }} 个</td>
+          <td>
+            <a href="/teacher/grade/{{ hw.hw_key }}" class="text-primary-400 hover:text-primary-600 text-sm font-medium">批改</a>
+            <a href="/teacher/analytics/{{ hw.hw_key }}" class="text-gray-400 hover:text-gray-600 text-sm ml-2">学情</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if assignment %}
 <div class="stats-grid stagger mb-6">
-  <div class="stat-card"><div class="stat-value text-primary-400">5</div><div class="stat-label">提交学生数</div></div>
+  <div class="stat-card"><div class="stat-value text-primary-400">{{ students|length }}</div><div class="stat-label">学生数</div></div>
   <div class="stat-card"><div class="stat-value text-green-500">100%</div><div class="stat-label">提交率</div></div>
   <div class="stat-card"><div class="stat-value text-amber-500">~3min</div><div class="stat-label">预估AI批改耗时</div><div class="text-xs text-green-500 mt-1">vs 人工 ~2.5h</div></div>
   <div class="stat-card"><div class="stat-value text-indigo-500">{{ assignment.knowledge_points|length }}</div><div class="stat-label">知识点标签</div></div>
 </div>
 
 <div class="content-card">
-  <div class="content-card-header"><span class="content-card-title">作业题目概览</span><span class="score-pill good">{{ assignment.knowledge_points|length }} 知识点</span></div>
+  <div class="content-card-header"><span class="content-card-title">作业题目概览 — {{ assignment.title }}</span><span class="score-pill good">{{ assignment.knowledge_points|length }} 知识点</span></div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>#</th><th>题型</th><th>题目</th><th>分值</th><th>知识点</th></tr></thead>
@@ -42,9 +73,18 @@
     </table>
   </div>
 </div>
+{% else %}
+<div class="content-card">
+  <div class="p-12 text-center text-gray-400">
+    <i data-lucide="clipboard-list" class="w-12 h-12 mx-auto mb-3 opacity-40"></i>
+    <p class="text-sm mb-4">还没有作业，点击「创建作业」开始</p>
+    <a href="/teacher/homework/create" class="btn btn-primary btn-sm"><i data-lucide="plus" class="w-4 h-4"></i> 创建第一份作业</a>
+  </div>
+</div>
+{% endif %}
 
 <div class="content-card">
-  <div class="content-card-header"><span class="content-card-title">学生列表</span><span class="text-xs text-gray-400">已提交 {{ students|length }} 人</span></div>
+  <div class="content-card-header"><span class="content-card-title">学生列表</span><span class="text-xs text-gray-400">{{ students|length }} 人</span></div>
   <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
     {% for s in students %}
     <a href="/student/{{ s.id }}/dashboard" class="flex items-center gap-3 p-4 rounded-xl bg-gray-50 hover:bg-primary-50 transition-all no-underline text-gray-800 hover:-translate-y-0.5 hover:shadow-md">
@@ -55,13 +95,6 @@
       </div>
     </a>
     {% endfor %}
-  </div>
-</div>
-
-<div class="content-card">
-  <div class="content-card-header"><span class="content-card-title">知识点覆盖</span></div>
-  <div class="flex flex-wrap gap-2">
-    {% for kp in assignment.knowledge_points %}<span class="score-pill good text-xs" style="background:#eef1fe;color:#1d4ed8;">{{ kp }}</span>{% endfor %}
   </div>
 </div>
 {% endblock %}
