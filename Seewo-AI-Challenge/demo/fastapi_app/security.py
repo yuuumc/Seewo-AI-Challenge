@@ -52,7 +52,11 @@ def _decode_flask_session(request: Request) -> Optional[dict]:
 
 
 def get_current_user(request: Request) -> dict:
-    """FastAPI 依赖：返回当前登录用户；未登录或 session 失效抛 401."""
+    """FastAPI 依赖：返回当前登录用户；未登录或 session 失效抛 401.
+    
+    V1.0: Uses db_store.get_user() → PG users table (with DEMO_USERS fallback).
+    Both Flask and FastAPI now share the same user source via PG.
+    """
     sess = _decode_flask_session(request)
     if not sess:
         raise HTTPException(
@@ -63,7 +67,16 @@ def get_current_user(request: Request) -> dict:
     user_id = sess.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid session: no user_id")
-    user = _DEMO_USERS.get(user_id)
+
+    # V1.0: Try PG-backed user store first, fall back to _DEMO_USERS
+    user = None
+    try:
+        from db_store import get_user as _db_get_user
+        user = _db_get_user(user_id)
+    except Exception:
+        pass
+    if not user:
+        user = _DEMO_USERS.get(user_id)
     if not user:
         raise HTTPException(status_code=401, detail=f"Unknown user: {user_id}")
     return {"user_id": user_id, **user}

@@ -315,18 +315,49 @@ def register_template_helpers(app) -> None:
 # Auth + RBAC
 # ---------------------------------------------------------------------------
 def get_current_user() -> Optional[dict]:
-    """Return the current user dict from session, or None."""
+    """Return the current user dict from session, or None.
+    
+    V1.0: Uses db_store.get_user() which tries PG first, falls back to DEMO_USERS.
+    Session stores username; user details are looked up fresh each request
+    (so DB changes are reflected immediately).
+    """
     user_id = session.get("user_id")
     if not user_id:
         return None
-    user = DEMO_USERS.get(user_id)
+    # V1.0: Try DB store first, fall back to DEMO_USERS
+    try:
+        from db_store import get_user as _db_get_user
+        user = _db_get_user(user_id)
+    except Exception:
+        user = DEMO_USERS.get(user_id)
     if not user:
         return None
     return {"user_id": user_id, **user}
 
 
 def login_user(username: str, password: str) -> Optional[dict]:
-    """Validate demo creds and populate the session. Returns the user dict on success."""
+    """Validate creds and populate the session. Returns the user dict on success.
+    
+    V1.0: Authentication goes through db_store → PG users table (with DEMO_USERS fallback).
+    Password verification uses bcrypt (constant-time, MIG-03).
+    """
+    # V1.0: Try DB-backed authentication first
+    try:
+        from db_store import authenticate as _db_auth, update_last_login
+        user = _db_auth(username, password, _verify_password)
+        if user:
+            session.clear()
+            session["user_id"] = username
+            session["user_role"] = user["role"]
+            session["user_name"] = user["name"]
+            session["_csrf"] = secrets.token_urlsafe(32)  # fresh token per login
+            update_last_login(username)  # PG only, no-op in fallback
+            return {"user_id": username, **user}
+        return None
+    except Exception:
+        pass
+
+    # Fallback: original DEMO_USERS path (unchanged behavior)
     user = DEMO_USERS.get(username)
     if not user:
         return None
