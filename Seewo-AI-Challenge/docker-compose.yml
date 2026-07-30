@@ -51,7 +51,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       # —— P0-2: 缺值直接启动失败，不兜底默认 ——
-      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?FLASK_SECRET_KEY required (generate with: openssl rand -hex 32)}
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:?FLASK_SECRET_KEY required}"
       ENV: ${ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SEEWO_DEMO_MODE: ${SEEWO_DEMO_MODE:-false}
