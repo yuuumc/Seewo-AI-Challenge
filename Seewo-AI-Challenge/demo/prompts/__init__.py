@@ -46,6 +46,17 @@ _MULTI_SUBJECT_PROMPT_NAMES: tuple[str, ...] = (
     "chemistry_short_grading",
 )
 
+# ---------------------------------------------------------------------------
+# Sprint 3 订正闭环 + 情感化评语 prompt（提示词工程师线）。
+# 与多学科 prompt 同体系，但不属于 subject_type 映射——
+# correction_grading 按"订正对比批改"场景调用，
+# emotional_feedback 按"情感化评语生成"场景调用。
+# ---------------------------------------------------------------------------
+_SPRINT3_PROMPT_NAMES: tuple[str, ...] = (
+    "correction_grading",
+    "emotional_feedback",
+)
+
 # subject_type → prompt name 映射（外部按学科/题型取 prompt 的统一入口）
 _SUBJECT_TYPE_MAP: dict[str, str] = {
     "math_calculation": "math_step_grading",
@@ -71,7 +82,7 @@ def _read_prompt_file(name: str) -> str:
     Raises:
         FileNotFoundError: if the .md file does not exist in this package.
     """
-    _all = _PROMPT_NAMES + _MULTI_SUBJECT_PROMPT_NAMES
+    _all = _PROMPT_NAMES + _MULTI_SUBJECT_PROMPT_NAMES + _SPRINT3_PROMPT_NAMES
     if name not in _all:
         raise ValueError(
             f"Unknown prompt name: {name!r}. Valid: {_all}"
@@ -163,8 +174,41 @@ def list_multi_subject_prompts() -> List[Dict[str, str]]:
 
 
 def load_prompt_by_name(name: str) -> str:
-    """按 prompt name 加载（通用入口，覆盖原 3 + 多学科 6）。"""
+    """按 prompt name 加载（通用入口，覆盖原 3 + 多学科 6 + Sprint 3 2）。"""
     return _read_prompt_file(name)
+
+
+def load_correction_grading() -> str:
+    """Sprint 3: 订正对比批改 prompt.
+
+    输入: 原题目 + 学生原答案 + 原批改结果 + 学生订正答案。
+    输出: {mastery_level, comparison, encouragement, next_steps, confidence}。
+    """
+    return _read_prompt_file("correction_grading")
+
+
+def load_emotional_feedback() -> str:
+    """Sprint 3: 情感化评语 prompt.
+
+    输入: 学生历史表现（得分趋势、强项弱项、订正积极性）。
+    输出: 100-200字个性化评语纯文本。
+    """
+    return _read_prompt_file("emotional_feedback")
+
+
+def list_sprint3_prompts() -> List[Dict[str, str]]:
+    """列出 Sprint 3 订正闭环 + 情感化评语 prompt 的元信息。"""
+    out: List[Dict[str, str]] = []
+    for name in _SPRINT3_PROMPT_NAMES:
+        path = Path(__file__).parent / f"{name}.md"
+        size = path.stat().st_size if path.exists() else 0
+        out.append({
+            "name": name,
+            "path": str(path),
+            "size_bytes": str(size),
+            "version": PROMPTS_VERSION,
+        })
+    return out
 
 
 def get_prompt(subject_type: str) -> str:
@@ -199,4 +243,7 @@ __all__ = [
     "load_prompt_by_name",
     "get_prompt",
     "list_subject_types",
+    "load_correction_grading",
+    "load_emotional_feedback",
+    "list_sprint3_prompts",
 ]

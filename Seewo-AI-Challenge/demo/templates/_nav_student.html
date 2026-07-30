@@ -2,6 +2,7 @@
 {% set active = active|default('') %}
 {% set sid = sid|default('') %}
 <a href="/student/{{ sid }}/dashboard" class="nav-link {% if active=='dashboard' %}active{% endif %}"><i data-lucide="home"></i> 首页</a>
+<a href="/student/corrections" class="nav-link {% if active=='corrections' %}active{% endif %}"><i data-lucide="pen-line"></i> 订正历史</a>
 <a href="/student/{{ sid }}/error-book" class="nav-link {% if active=='error-book' %}active{% endif %}"><i data-lucide="book-x"></i> AI错题本</a>
 <a href="/student/{{ sid }}/knowledge-tree" class="nav-link {% if active=='knowledge-tree' %}active{% endif %}"><i data-lucide="git-fork"></i> 知识树</a>
 <a href="/student/{{ sid }}/coach" class="nav-link {% if active=='coach' %}active{% endif %}"><i data-lucide="message-circle"></i> AI助学</a>

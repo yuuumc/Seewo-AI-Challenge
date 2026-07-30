@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}订正练习 — {{ student.name }}{% endblock %}
+{% block nav %}
+  {% set sid = student.id %}{% set active = 'correction' %}{% include "_nav_student.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6 animate-fade-in">
+  <div class="flex gap-4 items-center">
+    <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-extrabold text-2xl shadow-lg" style="background:{{ student.avatar_color }};">
+      {{ student.name[0] }}
+    </div>
+    <div>
+      <h1 class="text-2xl font-extrabold text-gray-900">订正练习</h1>
+      <p class="text-sm text-gray-400 mt-1">{{ student.name }} · {{ hw_title }} · {{ wrong_count }} 题待订正</p>
+    </div>
+  </div>
+  <div class="text-right">
+    <div class="text-3xl font-extrabold {% if corrected_count == wrong_count and wrong_count > 0 %}text-green-500{% elif corrected_count > 0 %}text-amber-500{% else %}text-red-500{% endif %}">
+      {{ corrected_count }}/{{ wrong_count }}
+    </div>
+    <div class="text-xs text-gray-400">已订正</div>
+  </div>
+</div>
+
+<!-- 闭环流程示意 -->
+<div class="content-card mb-5">
+  <div class="flex items-center justify-center gap-3 flex-wrap p-5">
+    <span class="px-5 py-3 rounded-xl bg-primary-50 text-primary-600 font-bold text-sm">批改完成</span>
+    <i data-lucide="arrow-right" class="w-5 h-5 text-gray-300"></i>
+    <span class="px-5 py-3 rounded-xl bg-amber-50 text-amber-700 font-bold text-sm">查看错题</span>
+    <i data-lucide="arrow-right" class="w-5 h-5 text-gray-300"></i>
+    <span class="px-5 py-3 rounded-xl bg-indigo-50 text-indigo-600 font-bold text-sm">提交订正</span>
+    <i data-lucide="arrow-right" class="w-5 h-5 text-gray-300"></i>
+    <span class="px-5 py-3 rounded-xl {% if corrected_count == wrong_count and wrong_count > 0 %}bg-green-50 text-green-600{% else %}bg-gray-50 text-gray-400{% endif %} font-bold text-sm">AI 验证闭环</span>
+  </div>
+</div>
+
+<!-- 题目列表 -->
+{% for item in items %}
+<div class="content-card mb-4" id="question-{{ item.id }}">
+  <div class="content-card-header">
+    <div class="flex items-center gap-3">
+      <span class="font-extrabold text-gray-900">{{ item.id|upper }}</span>
+      <span class="text-xs px-2 py-0.5 rounded-full {% if item.type == 'choice' %}bg-blue-50 text-blue-600{% elif item.type == 'fill_blank' %}bg-purple-50 text-purple-600{% else %}bg-orange-50 text-orange-600{% endif %}">
+        {% if item.type == 'choice' %}选择题{% elif item.type == 'fill_blank' %}填空题{% else %}解答题{% endif %}
+      </span>
+      <span class="text-xs text-gray-400">{{ item.knowledge }}</span>
+      <span class="text-xs text-gray-400">{{ item.score }} 分</span>
+    </div>
+    {% if item.is_correct %}
+    <span class="score-pill good">已答对</span>
+    {% elif item.correction_status == 'closed' %}
+    <span class="score-pill good">已订正</span>
+    {% else %}
+    <span class="score-pill warn">待订正</span>
+    {% endif %}
+  </div>
+
+  <div class="p-6 space-y-4">
+    <!-- 题干 -->
+    <div>
+      <div class="text-xs font-bold text-gray-400 mb-1">题目</div>
+      <p class="text-sm text-gray-700 leading-relaxed">{{ item.stem }}</p>
+      {% if item.type == 'choice' and item.options %}
+      <div class="mt-2 space-y-1">
+        {% for opt in item.options %}
+        <div class="text-sm text-gray-600 pl-2">{{ opt }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if not item.is_correct %}
+    <!-- 学生原答案 -->
+    <div class="p-3 rounded-xl bg-red-50/50 border-l-4 border-red-300">
+      <div class="text-xs font-bold text-red-500 mb-1">你的原作答</div>
+      <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ item.student_answer or '（未作答）' }}</div>
+    </div>
+
+    {% if item.correction_status == 'closed' %}
+    <!-- 已订正 -->
+    <div class="p-3 rounded-xl bg-green-50/50 border-l-4 border-green-400">
+      <div class="text-xs font-bold text-green-600 mb-1">AI 验证通过 — 订正已闭环</div>
+      {% if item.correction_attempts %}
+      <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ item.correction_attempts[-1].content[:200] }}</div>
+      <div class="text-xs text-gray-500 mt-2">{{ item.correction_attempts[-1].feedback }}</div>
+      {% endif %}
+    </div>
+    {% else %}
+    <!-- 订正输入区 -->
+    <div class="p-3 rounded-xl bg-indigo-50/30 border border-indigo-100">
+      <div class="text-xs font-bold text-indigo-600 mb-2">在此订正</div>
+
+      {% if item.type == 'choice' %}
+      <!-- 选择题：单选 -->
+      <div class="space-y-2" data-correction-input="{{ item.id }}" data-qtype="choice">
+        <div class="flex gap-2 flex-wrap">
+          {% for opt in item.options %}
+          {% set val = opt[0] %}
+          <label class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 cursor-pointer hover:bg-indigo-50 transition-colors">
+            <input type="radio" name="corr-{{ item.id }}" value="{{ val }}" class="corr-radio">
+            <span class="text-sm">{{ opt }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% elif item.type == 'fill_blank' %}
+      <!-- 填空题 -->
+      <div data-correction-input="{{ item.id }}" data-qtype="fill_blank">
+        <input type="text" class="corr-input w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-300" placeholder="请输入订正答案">
+      </div>
+      {% else %}
+      <!-- 解答题 -->
+      <div data-correction-input="{{ item.id }}" data-qtype="long_answer">
+        <textarea class="corr-input w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-300" rows="4" placeholder="请在此重新作答（支持 LaTeX 公式）"></textarea>
+      </div>
+      {% endif %}
+
+      <button class="btn btn-primary btn-sm mt-2 corr-submit-btn" data-qid="{{ item.id }}" data-submission="{{ submission_id }}">
+        <i data-lucide="send" class="w-4 h-4"></i> 提交订正 → AI 验证
+      </button>
+      <div id="corr-result-{{ item.id }}" class="mt-2"></div>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<!-- 底部导航 -->
+<div class="flex items-center justify-between mt-6">
+  <a href="/student/{{ student.id }}/dashboard" class="btn btn-outline">
+    <i data-lucide="arrow-left" class="w-4 h-4"></i> 返回首页
+  </a>
+  <a href="/student/corrections" class="btn btn-outline">
+    <i data-lucide="history" class="w-4 h-4"></i> 订正历史
+  </a>
+</div>
+
+<script>
+document.querySelectorAll('.corr-submit-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var qid = this.dataset.qid;
+    var subId = this.dataset.submission;
+    var container = document.querySelector('[data-correction-input="' + qid + '"]');
+    var qtype = container.dataset.qtype;
+    var correctionText = '';
+
+    if (qtype === 'choice') {
+      var checked = container.querySelector('.corr-radio:checked');
+      if (!checked) { showResult(qid, '请选择答案', false); return; }
+      correctionText = checked.value;
+    } else {
+      var input = container.querySelector('.corr-input');
+      correctionText = (input.value || '').trim();
+      if (!correctionText) { showResult(qid, '请输入订正内容', false); return; }
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> AI 验证中…';
+    if (window.lucide) lucide.createIcons();
+
+    // 获取 CSRF token
+    var csrfToken = '';
+    var csrfInput = document.querySelector('input[name="csrf_token"]');
+    if (csrfInput) csrfToken = csrfInput.value;
+
+    // 调用订正接口
+    // 优先走新 API /api/correction/submit，不存在时回退到旧接口
+    fetch('/api/correction/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify({
+        submission_id: subId,
+        question_id: qid,
+        correction_text: correctionText
+      })
+    }).then(function(r) {
+      if (r.status === 404) {
+        // 新 API 不存在，回退到旧接口
+        return fetch('/student/{{ student.id }}/correction/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify({
+            question_id: qid,
+            correction_text: correctionText
+          })
+        });
+      }
+      return r;
+    }).then(function(r) { return r.json(); })
+    .then(function(data) {
+      btn.disabled = false;
+      var isCorrect = data.is_correct || data.mastery_level === 'mastered';
+      if (isCorrect) {
+        btn.className = 'btn btn-success btn-sm mt-2';
+        btn.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i> AI 验证通过';
+        btn.disabled = true;
+        showResult(qid, data.feedback || data.encouragement || '订正正确！已闭环。', true);
+        // 禁用输入
+        var inputs = container.querySelectorAll('input, textarea');
+        inputs.forEach(function(el) { el.disabled = true; });
+      } else {
+        btn.className = 'btn btn-primary btn-sm mt-2';
+        btn.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4"></i> 重新提交';
+        showResult(qid, data.feedback || data.comparison || '订正未通过，请再试一次。', false);
+      }
+      if (window.lucide) lucide.createIcons();
+    }).catch(function() {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> 提交订正 → AI 验证';
+      showResult(qid, '提交失败，请重试', false);
+      if (window.lucide) lucide.createIcons();
+    });
+  });
+});
+
+function showResult(qid, msg, success) {
+  var el = document.getElementById('corr-result-' + qid);
+  el.innerHTML = '<div class="p-3 rounded-lg text-sm border ' +
+    (success ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200') +
+    '">' + msg + '</div>';
+}
+</script>
+{% endblock %}

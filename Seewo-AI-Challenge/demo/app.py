@@ -73,6 +73,7 @@ from security import (
     login_user,
     logout_user,
     register_template_helpers,
+    _demo_auth_open,
     register_error_handlers,
     DEMO_USERS,
 )
@@ -392,6 +393,193 @@ def teacher_review_queue(assignment_id):
     """Teacher review queue — low-confidence items sorted by urgency."""
     queue = get_teacher_review_queue(assignment_id)
     return render_template("teacher_review.html", queue=queue, assignment_id=assignment_id)
+
+
+# ── V1.5 Sprint 3: 订正闭环 · 学生端页面 ─────────────────────────────
+def _get_student_id_from_session() -> str | None:
+    """Extract student_id from the current session user."""
+    user = get_current_user()
+    if not user:
+        return None
+    # Student usernames are like "s01", "s02" etc. — same as student_id
+    if user.get("role") == "student":
+        return user.get("user_id")
+    return None
+
+
+def _build_correction_context(submission_id: str) -> dict | None:
+    """Build context for the correction submit page from a submission_id.
+
+    submission_id format: "<student_id>_<hw_key>" e.g. "s01_hw_001"
+    """
+    answers = load_json("answers.json")
+    sub = answers.get(submission_id)
+    if not sub:
+        return None
+
+    student_id = sub.get("student_id", "")
+    hw_key = sub.get("assignment_id", "hw_001")
+    questions_all = load_json("questions.json")
+    hw = questions_all.get(hw_key, {})
+    questions = hw.get("questions", [])
+
+    # Get corrections for this student
+    corrections = load_json("corrections.json")
+    corr_key = f"{hw_key}_corrections"
+
+    # Build per-question info
+    items = []
+    for q in questions:
+        qid = q["id"]
+        student_answer = sub.get("answers", {}).get(qid, "")
+        # Determine if the answer is correct
+        if q["type"] == "choice":
+            is_correct = student_answer.strip().upper() == q.get("answer", "").strip().upper()
+        elif q["type"] == "fill_blank":
+            is_correct = student_answer.strip().replace(" ", "") == q.get("answer", "").strip().replace(" ", "")
+        else:
+            result = grade_long_answer(student_answer, q, student_id)
+            is_correct = result.get("is_correct", False)
+
+        # Check correction status
+        sub_key = f"{student_id}_{qid}"
+        corr = corrections.get(corr_key, {}).get(sub_key, {})
+        corr_status = corr.get("status", "pending")
+        attempts = corr.get("attempts", [])
+
+        items.append({
+            "id": qid,
+            "type": q["type"],
+            "subject_type": q.get("subject_type", "math_calculation"),
+            "stem": q.get("stem", ""),
+            "options": q.get("options", []),
+            "answer": q.get("answer", ""),
+            "score": q.get("score", 0),
+            "knowledge": q.get("knowledge", ""),
+            "student_answer": student_answer,
+            "is_correct": is_correct,
+            "correction_status": corr_status,
+            "correction_attempts": attempts,
+        })
+
+    students = load_json("students.json")["students"]
+    student = next((s for s in students if s["id"] == student_id), None)
+
+    return {
+        "submission_id": submission_id,
+        "student": student,
+        "hw_key": hw_key,
+        "hw_title": hw.get("title", hw_key),
+        "items": items,
+        "wrong_count": sum(1 for i in items if not i["is_correct"]),
+        "corrected_count": sum(1 for i in items if i["correction_status"] == "closed"),
+    }
+
+
+@app.route("/student/correction/<submission_id>")
+@login_required
+def student_correction_submit_page(submission_id):
+    """V1.5 Sprint 3: Correction submit page for a specific submission.
+
+    Shows original questions, student answers, grading results, and
+    provides a correction input area per question type.
+    """
+    ctx = _build_correction_context(submission_id)
+    if not ctx:
+        return "Submission not found", 404
+
+    # Ownership check: student can only view their own submissions
+    sid = _get_student_id_from_session()
+    if sid and ctx["student"] and ctx["student"]["id"] != sid:
+        return "Forbidden", 403
+
+    return render_template("student_correction_submit.html", **ctx)
+
+
+@app.route("/student/corrections")
+@login_required
+def student_corrections_list():
+    """V1.5 Sprint 3: Correction history page for the current student."""
+    sid = _get_student_id_from_session()
+    if not sid:
+        # Non-student users: redirect to their dashboard or show empty
+        return render_template("student_corrections.html", corrections=[], student=None, pending_count=0)
+
+    # Build correction history from corrections.json
+    corrections_data = load_json("corrections.json")
+    answers = load_json("answers.json")
+    questions_all = load_json("questions.json")
+    students = load_json("students.json")["students"]
+    student = next((s for s in students if s["id"] == sid), None)
+
+    history = []
+    for hw_key, hw_data in questions_all.items():
+        corr_key = f"{hw_key}_corrections"
+        hw_corrections = corrections_data.get(corr_key, {})
+        questions = hw_data.get("questions", [])
+
+        for q in questions:
+            qid = q["id"]
+            sub_key = f"{sid}_{qid}"
+            corr = hw_corrections.get(sub_key)
+            if not corr:
+                continue
+
+            # Get original answer
+            submission_key = f"{sid}_{hw_key}"
+            orig_answer = answers.get(submission_key, {}).get("answers", {}).get(qid, "")
+
+            attempts = corr.get("attempts", [])
+            latest_attempt = attempts[-1] if attempts else {}
+
+            history.append({
+                "hw_key": hw_key,
+                "hw_title": hw_data.get("title", hw_key),
+                "question_id": qid,
+                "question_stem": q.get("stem", "")[:80],
+                "question_type": q.get("type", ""),
+                "knowledge": q.get("knowledge", ""),
+                "original_answer": orig_answer[:100],
+                "correction_text": latest_attempt.get("content", "")[:100],
+                "mastery_level": "mastered" if corr.get("status") == "closed" else "partial",
+                "status": corr.get("status", "pending"),
+                "attempts_count": len(attempts),
+                "feedback": latest_attempt.get("feedback", ""),
+            })
+
+    # Sort by most recent first (using attempts order as proxy)
+    history.reverse()
+
+    # Count pending corrections (wrong answers without closed corrections)
+    pending_count = 0
+    for hw_key, hw_data in questions_all.items():
+        submission_key = f"{sid}_{hw_key}"
+        sub = answers.get(submission_key)
+        if not sub:
+            continue
+        corr_key = f"{hw_key}_corrections"
+        hw_corrections = corrections_data.get(corr_key, {})
+        for q in hw_data.get("questions", []):
+            qid = q["id"]
+            sa = sub.get("answers", {}).get(qid, "")
+            if q["type"] == "choice":
+                is_correct = sa.strip().upper() == q.get("answer", "").strip().upper()
+            elif q["type"] == "fill_blank":
+                is_correct = sa.strip().replace(" ", "") == q.get("answer", "").strip().replace(" ", "")
+            else:
+                is_correct = sa.strip() != ""  # simplified
+            if not is_correct:
+                sub_key = f"{sid}_{qid}"
+                corr = hw_corrections.get(sub_key, {})
+                if corr.get("status") != "closed":
+                    pending_count += 1
+
+    return render_template(
+        "student_corrections.html",
+        corrections=history,
+        student=student,
+        pending_count=pending_count,
+    )
 
 
 # ── 学生知识雷达 ──────────────────────────────────────────────────────
@@ -886,6 +1074,300 @@ def api_ocr_grade():
         "ocr_result": ocr_result,
         "grade_result": grade_result,
     })
+
+
+# ── Sprint 3: 订正闭环 API ────────────────────────────────────────────
+
+def _resolve_submission(submission_id: str) -> tuple[dict | None, dict | None]:
+    """从 submission_id（如 s02_hw_001）解析出 answer record + question.
+
+    Returns: (answer_record, question_dict) or (None, None) if not found.
+    """
+    answers = load_json("answers.json")
+    record = answers.get(submission_id)
+    if not record:
+        return None, None
+
+    assignment_id = record.get("assignment_id", "hw_001")
+    questions_data = load_json("questions.json")
+    assignment = questions_data.get(assignment_id, {})
+    return record, assignment
+
+
+def _find_question_in_assignment(assignment: dict, question_id: str) -> dict | None:
+    """在 assignment 中查找指定 question_id 的题目."""
+    for q in assignment.get("questions", []):
+        if q["id"] == question_id:
+            return q
+    return None
+
+
+def _find_original_grading(student_id: str, question_id: str) -> dict:
+    """查找学生原批改结果（从 grading_results.json 或 fallback 构造）."""
+    try:
+        results = load_json("grading_results.json")
+        for r in results.get("results", []):
+            if r.get("student_id") == student_id and r.get("question_id") == question_id:
+                return r
+    except (FileNotFoundError, KeyError):
+        pass
+    # Fallback: 构造一个最简 result
+    return {"is_correct": False, "score": 0, "step_results": []}
+
+
+def _save_correction_record(
+    student_id: str,
+    homework_key: str,
+    question_id: str,
+    original_answer: str,
+    correction_text: str,
+    grading_result: dict,
+) -> None:
+    """将订正记录写入 corrections.json（JSON fallback 模式）.
+
+    同一 student+question 的订正追加到 attempts 列表；
+    mastery_level=mastered 时 status 置为 closed。
+    """
+    import json as _json
+    corrections_path = os.path.join(os.path.dirname(__file__), "data", "corrections.json")
+    try:
+        with open(corrections_path, "r", encoding="utf-8") as f:
+            corrections = _json.load(f)
+    except (FileNotFoundError, _json.JSONDecodeError):
+        corrections = {}
+
+    hw_key = f"{homework_key}_corrections"
+    sub_key = f"{student_id}_{question_id}"
+
+    if hw_key not in corrections:
+        corrections[hw_key] = {}
+    if sub_key not in corrections[hw_key]:
+        corrections[hw_key][sub_key] = {
+            "student_id": student_id,
+            "question_id": question_id,
+            "original_answer": original_answer,
+            "attempts": [],
+            "status": "open",
+        }
+
+    record = corrections[hw_key][sub_key]
+    attempt_num = len(record["attempts"]) + 1
+    record["attempts"].append({
+        "attempt": attempt_num,
+        "content": correction_text,
+        "result": "correct" if grading_result["is_correct"] else "incorrect",
+        "mastery_level": grading_result["mastery_level"],
+        "feedback": grading_result["feedback"],
+        "comparison": grading_result["comparison"],
+        "encouragement": grading_result["encouragement"],
+        "next_steps": grading_result.get("next_steps", ""),
+        "graded_by": grading_result.get("graded_by", "mock"),
+        "timestamp": grading_result.get("timestamp", ""),
+    })
+
+    # mastered → 闭环
+    if grading_result["mastery_level"] == "mastered":
+        record["status"] = "closed"
+
+    with open(corrections_path, "w", encoding="utf-8") as f:
+        _json.dump(corrections, f, ensure_ascii=False, indent=2)
+
+
+@app.route("/api/correction/submit", methods=["POST"])
+@login_required
+@csrf_protect
+@rate_limit(max_per_minute=20)
+def api_correction_submit():
+    """学生提交订正 → LLM/mock 对比批改 → 写 corrections 表 → 返回结构化结果.
+
+    接口契约（与原型师对齐）:
+        Request:  { submission_id, question_id, correction_text }
+        Response: { ok, is_correct, mastery_level, feedback, encouragement, comparison }
+    """
+    from engine.correction_grader import grade_correction
+
+    body = request.get_json(silent=True) or {}
+    submission_id = body.get("submission_id", "")
+    question_id = body.get("question_id", "")
+    correction_text = body.get("correction_text", "").strip()
+
+    if not submission_id or not question_id or not correction_text:
+        return jsonify({"ok": False, "error": "缺少必填字段: submission_id, question_id, correction_text"}), 400
+
+    # 权限校验：学生只能提交自己的订正
+    user = get_current_user()
+    record, assignment = _resolve_submission(submission_id)
+    if not record:
+        return jsonify({"ok": False, "error": "提交记录不存在"}), 404
+
+    submission_student_id = record.get("student_id", "")
+    if user and user.get("role") == "student":
+        own_student_id = user.get("student_id", "")
+        if own_student_id and own_student_id != submission_student_id:
+            audit_log("correction_idor_blocked", target=submission_id, own=own_student_id)
+            return jsonify({"ok": False, "error": "无权提交他人的订正"}), 403
+
+    # 查找题目
+    question = _find_question_in_assignment(assignment, question_id)
+    if not question:
+        return jsonify({"ok": False, "error": "题目不存在"}), 404
+
+    # 获取原答案和原批改结果
+    original_answer = record.get("answers", {}).get(question_id, "")
+    original_result = _find_original_grading(submission_student_id, question_id)
+
+    # 订正对比批改
+    grading_result = grade_correction(
+        question=question,
+        original_answer=original_answer,
+        original_result=original_result,
+        correction_text=correction_text,
+        student_id=submission_student_id,
+    )
+
+    # 持久化（JSON fallback；PG 可用时 future 迁移）
+    homework_key = record.get("assignment_id", "hw_001")
+    _save_correction_record(
+        student_id=submission_student_id,
+        homework_key=homework_key,
+        question_id=question_id,
+        original_answer=original_answer,
+        correction_text=correction_text,
+        grading_result=grading_result,
+    )
+
+    audit_log(
+        "correction_submit_api",
+        student_id=submission_student_id,
+        question_id=question_id,
+        mastery=grading_result["mastery_level"],
+    )
+
+    return jsonify({
+        "ok": True,
+        "is_correct": grading_result["is_correct"],
+        "mastery_level": grading_result["mastery_level"],
+        "feedback": grading_result["feedback"],
+        "encouragement": grading_result["encouragement"],
+        "comparison": grading_result["comparison"],
+        "next_steps": grading_result.get("next_steps", ""),
+    })
+
+
+@app.route("/api/correction/list", methods=["GET"])
+@login_required
+def api_correction_list():
+    """返回当前学生的订正列表.
+
+    Response: { ok, corrections: [...], pending_count: int }
+    每条 correction: { question_id, homework_key, mastery_level, attempt_count,
+                       latest_feedback, status, created_at }
+    """
+    from engine.correction_grader import get_latest_mastery
+
+    user = get_current_user()
+    if not user:
+        if _demo_auth_open():
+            # demo 模式默认返回 s01 的数据
+            student_id = request.args.get("student_id", "s01")
+        else:
+            return jsonify({"ok": False, "error": "未登录"}), 401
+    else:
+        if user.get("role") == "student":
+            student_id = user.get("student_id", "")
+        else:
+            # teacher/admin 可以查指定学生
+            student_id = request.args.get("student_id", "")
+
+    if not student_id:
+        return jsonify({"ok": False, "error": "缺少 student_id"}), 400
+
+    # 从 corrections.json 读取
+    corrections_data = load_json("corrections.json")
+    result_list = []
+    for hw_key, hw_corrections in corrections_data.items():
+        actual_hw_key = hw_key.replace("_corrections", "")
+        for sub_key, record in hw_corrections.items():
+            if record.get("student_id") != student_id:
+                continue
+            attempts = record.get("attempts", [])
+            latest_mastery = get_latest_mastery(attempts)
+            latest_attempt = max(attempts, key=lambda a: a.get("attempt", 0)) if attempts else {}
+            result_list.append({
+                "question_id": record.get("question_id", ""),
+                "homework_key": actual_hw_key,
+                "mastery_level": latest_mastery,
+                "attempt_count": len(attempts),
+                "latest_feedback": latest_attempt.get("feedback", ""),
+                "latest_encouragement": latest_attempt.get("encouragement", ""),
+                "status": record.get("status", "open"),
+                "created_at": record.get("created_at", ""),
+                "latest_timestamp": latest_attempt.get("timestamp", ""),
+            })
+
+    # 待订正计数：有批改结果但无订正记录的 submission 数
+    pending_count = _count_pending_corrections(student_id)
+
+    return jsonify({
+        "ok": True,
+        "corrections": result_list,
+        "pending_count": pending_count,
+    })
+
+
+def _count_pending_corrections(student_id: str) -> int:
+    """计算待订正数量：有批改结果但无订正记录的题目数.
+
+    遍历学生的 submission 中每道题，检查 corrections.json 是否有对应记录。
+    """
+    answers = load_json("answers.json")
+    corrections_data = load_json("corrections.json")
+
+    # 收集已订正的 question_id 集合
+    corrected_keys = set()
+    for hw_key, hw_corrections in corrections_data.items():
+        for sub_key, record in hw_corrections.items():
+            if record.get("student_id") == student_id:
+                corrected_keys.add(record.get("question_id", ""))
+
+    # 遍历该学生的所有 submission，统计未订正的错题
+    pending = 0
+    for sub_id, record in answers.items():
+        if record.get("student_id") != student_id:
+            continue
+        assignment_id = record.get("assignment_id", "hw_001")
+        questions_data = load_json("questions.json")
+        assignment = questions_data.get(assignment_id, {})
+        answers_dict = record.get("answers", {})
+
+        for q in assignment.get("questions", []):
+            q_id = q["id"]
+            if q_id in corrected_keys:
+                continue
+            # 判断是否答错（有批改结果但未订正）
+            student_answer = answers_dict.get(q_id, "")
+            if not student_answer:
+                continue
+            # 简单判断：choice/fill_blank 与标准答案比对
+            if q.get("type") == "choice":
+                if student_answer.strip().upper() != q.get("answer", "").strip().upper():
+                    pending += 1
+            elif q.get("type") == "fill_blank":
+                import re as _re
+                norm = lambda s: _re.sub(r"\s+", "", s)
+                if norm(student_answer) != norm(q.get("answer", "")):
+                    pending += 1
+            else:
+                # long_answer: 有答案就认为可能需要订正（简化逻辑）
+                # 实际应查 grading_results 判断 is_correct
+                try:
+                    grading = _find_original_grading(student_id, q_id)
+                    if not grading.get("is_correct", True):
+                        pending += 1
+                except Exception:
+                    pass
+
+    return pending
 
 
 if __name__ == "__main__":

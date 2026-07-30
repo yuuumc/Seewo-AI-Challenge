@@ -31,3 +31,4 @@ node_modules/
 *.b64
 /tmp/
 sprint2-ocr.patch
+sprint2-*.patch

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}订正历史 — {{ student.name if student else '学生' }}{% endblock %}
+{% block nav %}
+  {% if student %}{% set sid = student.id %}{% set active = 'corrections' %}{% include "_nav_student.html" %}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 animate-fade-in">
+  <h1 class="text-2xl font-extrabold text-gray-900">订正历史</h1>
+  <p class="text-sm text-gray-400 mt-1">
+    {% if student %}{{ student.name }} · {{ corrections|length }} 条订正记录{% else %}请登录后查看{% endif %}
+    {% if pending_count > 0 %} · <span class="text-red-500 font-bold">{{ pending_count }} 题待订正</span>{% endif %}
+  </p>
+</div>
+
+{% if pending_count > 0 %}
+<!-- 待订正提醒 -->
+<div class="content-card mb-5 border-l-4 border-amber-400">
+  <div class="flex items-center gap-3 p-4">
+    <i data-lucide="alert-circle" class="w-6 h-6 text-amber-500 flex-shrink-0"></i>
+    <div class="flex-1">
+      <div class="font-bold text-sm text-gray-800">你有 {{ pending_count }} 题待订正</div>
+      <div class="text-xs text-gray-500 mt-1">订正后 AI 会自动验证并更新掌握度</div>
+    </div>
+    {% if student %}
+    <a href="/student/correction/{{ student.id }}_hw_001" class="btn btn-primary btn-sm">
+      <i data-lucide="pen-line" class="w-4 h-4"></i> 去订正
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if corrections %}
+<!-- 订正记录列表 -->
+<div class="space-y-3">
+  {% for corr in corrections %}
+  <div class="content-card">
+    <div class="p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-sm text-gray-900">{{ corr.question_id|upper }}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full {% if corr.question_type == 'choice' %}bg-blue-50 text-blue-600{% elif corr.question_type == 'fill_blank' %}bg-purple-50 text-purple-600{% else %}bg-orange-50 text-orange-600{% endif %}">
+            {% if corr.question_type == 'choice' %}选择题{% elif corr.question_type == 'fill_blank' %}填空题{% else %}解答题{% endif %}
+          </span>
+          <span class="text-xs text-gray-400">{{ corr.knowledge }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          {% if corr.mastery_level == 'mastered' %}
+          <span class="score-pill good">已掌握</span>
+          {% elif corr.mastery_level == 'partial' %}
+          <span class="score-pill warn">部分掌握</span>
+          {% else %}
+          <span class="score-pill bad">未掌握</span>
+          {% endif %}
+          <span class="text-xs text-gray-400">{{ corr.attempts_count }} 次尝试</span>
+        </div>
+      </div>
+
+      <div class="text-sm text-gray-600 mb-2">{{ corr.hw_title }} · {{ corr.question_stem }}{% if corr.question_stem|length >= 80 %}…{% endif %}</div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+        <!-- 原答案 -->
+        <div class="p-3 rounded-lg bg-red-50/50 border-l-3 border-red-300">
+          <div class="text-xs font-bold text-red-400 mb-1">原答案</div>
+          <div class="text-xs text-gray-600 whitespace-pre-wrap">{{ corr.original_answer or '（未作答）' }}</div>
+        </div>
+        <!-- 订正答案 -->
+        <div class="p-3 rounded-lg bg-green-50/50 border-l-3 border-green-400">
+          <div class="text-xs font-bold text-green-500 mb-1">订正答案</div>
+          <div class="text-xs text-gray-600 whitespace-pre-wrap">{{ corr.correction_text or '（空）' }}</div>
+        </div>
+      </div>
+
+      {% if corr.feedback %}
+      <div class="mt-3 p-3 rounded-lg bg-indigo-50/30 border border-indigo-100">
+        <div class="text-xs font-bold text-indigo-500 mb-1">AI 反馈</div>
+        <div class="text-xs text-gray-600">{{ corr.feedback }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<!-- 空状态 -->
+<div class="content-card p-12 text-center">
+  <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 text-gray-300"></i>
+  <p class="text-sm text-gray-400">暂无订正记录</p>
+  {% if student %}
+  <a href="/student/{{ student.id }}/dashboard" class="inline-flex items-center gap-1 mt-4 px-4 py-2 bg-primary-400 text-white text-sm font-bold rounded-lg no-underline hover:bg-primary-500 transition-colors">
+    <i data-lucide="home" class="w-4 h-4"></i> 返回首页
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- 底部导航 -->
+<div class="mt-6">
+  {% if student %}
+  <a href="/student/{{ student.id }}/dashboard" class="btn btn-outline">
+    <i data-lucide="arrow-left" class="w-4 h-4"></i> 返回首页
+  </a>
+  {% endif %}
+</div>
+{% endblock %}

@@ -28,10 +28,10 @@
     <div class="stat-value text-amber-500">{{ data.quick_stats.today_pending }}</div>
     <div class="stat-label">今日待完成</div>
   </div>
-  <div class="stat-card" data-aos="fade-up" data-aos-delay="80">
+  <a href="/student/correction/{{ data.student.id }}_hw_001" class="stat-card" data-aos="fade-up" data-aos-delay="80" style="text-decoration:none;color:inherit;">
     <div class="stat-value text-red-500">{{ data.quick_stats.corrections_due }}</div>
-    <div class="stat-label">待订正</div>
-  </div>
+    <div class="stat-label">待订正 ›</div>
+  </a>
   <div class="stat-card" data-aos="fade-up" data-aos-delay="160">
     <div class="stat-value text-green-500">🔥 {{ data.quick_stats.study_streak }}</div>
     <div class="stat-label">连续学习天数</div>
