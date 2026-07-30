@@ -1,0 +1,68 @@
+# Caddyfile — Seewo AI Challenge 生产反代 + 自动 HTTPS
+# V1.0 item 2: certbot 自动化确认
+#
+# Caddy 内置 ACME（Let's Encrypt）自动签发 + 自动续期：
+#   - 首次启动自动签发证书（HTTP-01 challenge，需 80 端口可达）
+#   - 证书有效期 90 天，Caddy 在到期前 1/3（~30 天）自动续期
+#   - 无需 certbot cron / systemd timer —— Caddy 自身管理续期生命周期
+#   - 续期失败时 Caddy 会重试并记录到 access/error log
+#
+# 部署方式（ECS）：
+#   sudo caddy run --config /path/to/Caddyfile
+#   或 systemd: systemctl enable --now caddy
+#
+# 续期可靠性确认：
+#   1. Caddy 进程常驻，续期由主循环自动触发（非 cron 依赖）
+#   2. 证书存储在 /var/lib/caddy/.local/share/caddy/certificates/
+#   3. 配合 scripts/check_cert_expiry.py 做到期监控告警
+#   4. 若 80 端口被占（已有 nginx），改用 DNS-01 challenge（见注释段）
+
+# ── 生产域名 ──────────────────────────────────────────────────────────
+seewo.researchkit.online {
+	# 自动 HTTPS：Caddy 自动签发 + 续期 Let's Encrypt 证书
+	# 如需关闭自动 HTTPS（已有证书），取消下一行注释
+	# tls /etc/ssl/seewo.crt /etc/ssl/seewo.key
+
+	# 反代到 gunicorn / FastAPI（docker-compose api 服务 8000 端口）
+	reverse_proxy 127.0.0.1:8000 {
+		# 健康检查走 /healthz（V1.0 item 1: 不走鉴权）
+		# Caddy 被动健康检查：失败请求自动标记后端不可用
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# 安全头
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# 删除暴露版本号的头
+		-Server
+	}
+
+	# 静态资源缓存
+	@static path /static/* /favicon.ico
+	header @static Cache-Control "public, max-age=86400"
+
+	# 压缩
+	encode gzip zstd
+
+	# 访问日志
+	log {
+		output file /var/log/caddy/seewo-access.log {
+			roll_size 100mb
+			roll_keep 7
+		}
+	}
+}
+
+# ── DNS-01 challenge 备选（80 端口不可用时） ──────────────────────────
+# 取消注释并填入 DNS provider 插件的 API token，Caddy 用 DNS-01 签发：
+# seewo.researchkit.online {
+# 	tls {
+# 		dns aliyun {env.ALIYUN_ACCESS_KEY} {env.ALIYUN_SECRET_KEY}
+# 	}
+# 	reverse_proxy 127.0.0.1:8000
+# }

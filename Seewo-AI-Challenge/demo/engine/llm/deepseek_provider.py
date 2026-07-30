@@ -175,10 +175,22 @@ def read_deepseek_config_from_env() -> Dict[str, Any]:
         LLM_TIMEOUT     -> timeout        (default: 60s)
         LLM_MAX_RETRIES -> max_retries    (default: 1)
     """
+    base_url = os.environ.get("LLM_BASE_URL", "").strip() or DEFAULT_BASE_URL
+    api_key = os.environ["LLM_API_KEY"].strip()
+    model = os.environ.get("LLM_MODEL", "").strip() or "deepseek-math"
+    # V1.0 item 5: provider+model 白名单（防 SSRF）
+    from engine.llm.allowlist import safe_validate
+
+    if not safe_validate(base_url, model, provider_name="deepseek"):
+        # 校验失败 → 抛异常让 factory 回退到 MockProvider
+        raise ValueError(
+            f"DeepSeek provider config rejected by allowlist "
+            f"(base_url={base_url!r}, model={model!r})"
+        )
     return {
-        "base_url": os.environ.get("LLM_BASE_URL", "").strip() or DEFAULT_BASE_URL,
-        "api_key": os.environ["LLM_API_KEY"].strip(),
-        "model": os.environ.get("LLM_MODEL", "").strip() or "deepseek-math",
+        "base_url": base_url,
+        "api_key": api_key,
+        "model": model,
         "api_model": os.environ.get("LLM_API_MODEL", "").strip() or None,
         "timeout": float(os.environ.get("LLM_TIMEOUT", "").strip() or DEFAULT_TIMEOUT),
         "max_retries": int(os.environ.get("LLM_MAX_RETRIES", "").strip() or 1),

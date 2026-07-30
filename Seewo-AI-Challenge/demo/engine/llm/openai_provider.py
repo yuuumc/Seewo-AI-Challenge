@@ -482,12 +482,19 @@ def read_provider_config_from_env() -> Optional[Dict[str, str]]:
     api_key = os.environ.get("LLM_API_KEY", "").strip()
     if not api_key:
         return None
+    base_url = os.environ.get(
+        "LLM_BASE_URL", "https://api.openai.com/v1"
+    ).strip()
+    model = os.environ.get("LLM_MODEL", "gpt-4o-mini").strip()
+    # V1.0 item 5: provider+model 白名单（防 SSRF）
+    from engine.llm.allowlist import safe_validate
+
+    if not safe_validate(base_url, model, provider_name="openai"):
+        return None  # 校验失败 → 回退 MockProvider（fail-safe）
     return {
-        "base_url": os.environ.get(
-            "LLM_BASE_URL", "https://api.openai.com/v1"
-        ).strip(),
+        "base_url": base_url,
         "api_key": api_key,
-        "model": os.environ.get("LLM_MODEL", "gpt-4o-mini").strip(),
+        "model": model,
         "timeout": os.environ.get("LLM_TIMEOUT", "30").strip(),
         "max_retries": os.environ.get("LLM_MAX_RETRIES", "1").strip(),
     }

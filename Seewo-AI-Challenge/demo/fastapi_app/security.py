@@ -18,26 +18,16 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from demo.fastapi_app.config import get_settings
 
+# V1.0 item 3: 去双源 — 不再维护独立 _DEMO_USERS 副本，
+# 用户回退统一走 demo.security.DEMO_USERS（单一源），PG 由 db_store 提供。
+from demo.security import DEMO_USERS as _DEMO_USERS
+
 settings = get_settings()
 _session_serializer = URLSafeTimedSerializer(
     settings.flask_secret_key,
     salt="cookie-session",
     signer_kwargs={"key_derivation": "hmac", "digest_method": "sha1"},
 )
-
-
-# —————— Demo user 表（与 demo.security.DEMO_USERS 对齐） ——————
-# Week 2 用 Phase 0 内存表，Week 3 切 PG users 表。
-_DEMO_USERS: dict = {
-    "teacher": {"name": "李老师", "role": "teacher"},
-    "head":    {"name": "王组长", "role": "head"},
-    "admin":   {"name": "张主任", "role": "admin"},
-    "s01":     {"name": "同学A", "role": "student", "student_id": "s01"},
-    "s02":     {"name": "同学B", "role": "student", "student_id": "s02"},
-    "s03":     {"name": "同学C", "role": "student", "student_id": "s03"},
-    "s04":     {"name": "同学D", "role": "student", "student_id": "s04"},
-    "s05":     {"name": "同学E", "role": "student", "student_id": "s05"},
-}
 
 
 def _decode_flask_session(request: Request) -> Optional[dict]:

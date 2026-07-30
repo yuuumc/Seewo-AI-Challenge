@@ -104,7 +104,13 @@ def get_provider() -> LLMProvider:
                 read_deepseek_config_from_env,
             )
 
-            _PROVIDER = DeepSeekProvider(**read_deepseek_config_from_env())
+            try:
+                _PROVIDER = DeepSeekProvider(**read_deepseek_config_from_env())
+            except ValueError:
+                # V1.0 item 5: allowlist 校验失败 → 回退 MockProvider
+                from engine.llm.mock_provider import MockProvider
+
+                _PROVIDER = MockProvider()
         else:
             _PROVIDER = OpenAIProvider(
                 base_url=cfg["base_url"],

@@ -195,9 +195,13 @@ def secret_key() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Audit log — append-only JSON-lines to logs/audit.log
+# Audit log — Redis Stream (primary) + append-only JSON-lines file (fallback)
+# V1.0 item 4: 审计日志从本地文件改 Redis Stream（docker-compose 已有 Redis）。
+# Redis 不可达时自动降级回文件，保证审计不丢、不影响 UX。
 # ---------------------------------------------------------------------------
 _AUDIT_PATH: Optional[Path] = None
+_AUDIT_REDIS = None  # type: ignore[var-annotated]
+_AUDIT_REDIS_DISABLED = False  # True = Redis 不可达，后续直接走文件
 
 
 def _audit_path() -> Path:
@@ -209,8 +213,48 @@ def _audit_path() -> Path:
     return _AUDIT_PATH
 
 
+def _get_audit_redis():
+    """惰性初始化 Redis 客户端。不可达则标记禁用，后续不再重试。"""
+    global _AUDIT_REDIS, _AUDIT_REDIS_DISABLED
+    if _AUDIT_REDIS_DISABLED:
+        return None
+    if _AUDIT_REDIS is not None:
+        return _AUDIT_REDIS
+    redis_url = os.environ.get("REDIS_URL", "")
+    if not redis_url:
+        _AUDIT_REDIS_DISABLED = True
+        return None
+    try:
+        import redis  # type: ignore[import-untyped]
+
+        _AUDIT_REDIS = redis.Redis.from_url(
+            redis_url, decode_responses=False, socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+        _AUDIT_REDIS.ping()  # 连通性探测
+    except Exception:  # noqa: BLE001 - Redis 不可达，降级文件
+        _AUDIT_REDIS = None
+        _AUDIT_REDIS_DISABLED = True
+        return None
+    return _AUDIT_REDIS
+
+
+def _audit_to_file(line: str) -> None:
+    """文件回退路径：追加一行 JSON。"""
+    with _audit_path().open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
+_AUDIT_STREAM_KEY = "audit:events"
+_AUDIT_STREAM_MAXLEN = 10000  # 保留最近 1 万条，约 2-3 周审计量
+
+
 def audit_log(event: str, **fields) -> None:
-    """Write one structured audit record. Never raises (audit must not break UX)."""
+    """Write one structured audit record. Never raises (audit must not break UX).
+
+    V1.0: 优先写 Redis Stream（XADD audit:events），不可达时降级写文件。
+    两条路径都走 JSON-lines 格式，消费侧可统一解析。
+    """
     try:
         record = {
             "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime()),
@@ -223,8 +267,22 @@ def audit_log(event: str, **fields) -> None:
             **fields,
         }
         line = json.dumps(record, ensure_ascii=False, default=str)
-        with _audit_path().open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+
+        # 优先 Redis Stream
+        r = _get_audit_redis()
+        if r is not None:
+            try:
+                r.xadd(
+                    _AUDIT_STREAM_KEY,
+                    {"data": line},
+                    maxlen=_AUDIT_STREAM_MAXLEN,
+                    approximate=True,
+                )
+                return
+            except Exception:  # noqa: BLE001 - Redis 写失败，降级文件
+                pass
+        # 降级：文件
+        _audit_to_file(line)
     except Exception:  # noqa: BLE001 - audit must not raise
         pass
 

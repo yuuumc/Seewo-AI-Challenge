@@ -575,10 +575,44 @@ def api_variants(question_id, student_level):
 
 
 # ── Health check ──────────────────────────────────────────────────────
+# V1.0 item 1: /healthz + /readyz 不走鉴权（无 @login_required），
+# 供负载均衡器 / caddy / k8s 探活。这两个路由在任何 before_request 之前
+# 注册，确保 prod 模式下匿名可访问。
 @app.route("/healthz")
 def healthz():
-    """Liveness probe for k8s / load balancer."""
+    """Liveness probe for k8s / load balancer. 进程存活即 OK，不查依赖。"""
     return jsonify({"status": "ok"})
+
+
+@app.route("/readyz")
+def readyz():
+    """Readiness probe: PG + Redis 都通才 200；任一失败返 503。
+
+    V1.0 item 1: 与 FastAPI /api/v1/readyz 对齐，供 Flask 直挂场景
+    （gunicorn 不经 FastAPI 时）的 LB 探活。
+    """
+    checks = {}
+    # PG
+    try:
+        from db_store import is_pg_available
+
+        checks["postgres"] = {"ok": bool(is_pg_available())}
+    except Exception as exc:  # noqa: BLE001
+        checks["postgres"] = {"ok": False, "error": str(exc)}
+    # Redis
+    try:
+        from security import _get_audit_redis
+
+        r = _get_audit_redis()
+        checks["redis"] = {"ok": r is not None and bool(r.ping())}
+    except Exception as exc:  # noqa: BLE001
+        checks["redis"] = {"ok": False, "error": str(exc)}
+    ready = all(c.get("ok") for c in checks.values())
+    body = {"ready": ready, "checks": checks}
+    from flask import make_response
+
+    resp = make_response(jsonify(body), 200 if ready else 503)
+    return resp
 
 
 if __name__ == "__main__":
