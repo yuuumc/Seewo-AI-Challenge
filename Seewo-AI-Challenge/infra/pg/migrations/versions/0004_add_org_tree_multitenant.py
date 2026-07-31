@@ -78,19 +78,27 @@ def upgrade() -> None:
     )
     op.create_index("ix_subject_groups_school", "subject_groups", ["school_id", "subject"])
 
+    # Step 4a: Insert default school (before FK)
+    op.execute(
+        "INSERT INTO schools (id, name, code, school_type, is_active, config) "
+        "VALUES (1, '默认学校', 'default', 'secondary', true, '{}') "
+        "ON CONFLICT (id) DO NOTHING"
+    )
+
     # Step 4: Add school_id to 7 business tables
     _school_id_type = sa.BigInteger().with_variant(sa.Integer, "sqlite")
-    _school_fk = sa.ForeignKey("schools.id", ondelete="RESTRICT")
 
     for table in ["users", "homeworks", "submissions", "grading_results", "corrections", "analytics_snapshots"]:
         op.add_column(table, sa.Column(
-            "school_id", _school_id_type, _school_fk,
+            "school_id", _school_id_type,
+            sa.ForeignKey("schools.id", ondelete="RESTRICT"),
             nullable=False, server_default="1",
         ))
 
     # classes also gets school_id (it already has other columns)
     op.add_column("classes", sa.Column(
-        "school_id", _school_id_type, _school_fk,
+        "school_id", _school_id_type,
+        sa.ForeignKey("schools.id", ondelete="RESTRICT"),
         nullable=False, server_default="1",
     ))
 
@@ -109,12 +117,7 @@ def upgrade() -> None:
     # Add school_id to agent_trace (nullable, for audit — no RLS)
     op.add_column("agent_trace", sa.Column("school_id", _school_id_type, nullable=True))
 
-    # Step 6: Insert default school
-    op.execute(
-        "INSERT INTO schools (id, name, code, school_type, is_active, config) "
-        "VALUES (1, '默认学校', 'default', 'secondary', true, '{}') "
-        "ON CONFLICT (id) DO NOTHING"
-    )
+
 
     # Step 7: Backfill school_id=1 for existing rows
     # (All existing data belongs to the default school. The server_default='1'
