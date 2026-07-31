@@ -41,6 +41,7 @@ from engine.llm.factory import (
     reset_runtime_trace_store,
     store_trace,
 )
+from engine.llm.pseudonym import pseudonymize_student_id
 
 __all__ = [
     "LLMProvider",
@@ -50,4 +51,5 @@ __all__ = [
     "get_runtime_trace",
     "reset_runtime_trace_store",
     "store_trace",
+    "pseudonymize_student_id",
 ]

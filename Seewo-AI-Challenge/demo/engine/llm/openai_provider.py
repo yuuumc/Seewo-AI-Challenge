@@ -39,6 +39,7 @@ import urllib.request
 from typing import Any, Dict, List, Optional
 
 from engine.llm.base import LLMProvider, TraceCollector
+from engine.llm.pseudonym import pseudonymize_student_id
 
 # Prompt templates — sourced from ``prompts/`` (provided by the prompt
 # engineer). Wrapped in try/except so the provider still works on
@@ -275,7 +276,7 @@ class OpenAIProvider(LLMProvider):
                     stage="math_grading",
                     input_payload={
                         "question_id": question.get("id"),
-                        "student_id": student_id,
+                        "student_id": pseudonymize_student_id(student_id),
                     },
                     output_payload={
                         "is_correct": data.get("is_correct"),
@@ -405,7 +406,7 @@ class OpenAIProvider(LLMProvider):
                 trace.record(
                     stage="comment_generation",
                     input_payload={
-                        "student_id": student.get("id"),
+                        "student_id": pseudonymize_student_id(student.get("id", "")),
                     },
                     output_payload={"comment_length": len(data)},
                     duration_ms=duration_ms,

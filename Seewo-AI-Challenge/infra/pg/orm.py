@@ -44,6 +44,8 @@ class User(Base):
     # V1.0: student display metadata (from students.json)
     avatar_color: Mapped[Optional[str]] = mapped_column(String(16))
     student_level: Mapped[Optional[str]] = mapped_column(String(4))
+    # Sprint 4 P0-3: 家长知情同意（未成年学情数据使用）
+    consent_given: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

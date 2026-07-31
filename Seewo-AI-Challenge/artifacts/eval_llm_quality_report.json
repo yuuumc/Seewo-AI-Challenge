@@ -1,0 +1,122 @@
+{
+  "provider": "mock",
+  "correction_grading": {
+    "metric": "mastery_accuracy",
+    "total": 6,
+    "correct": 2,
+    "accuracy_pct": 33.3,
+    "details": [
+      {
+        "fixture_id": "cg_mastered_01",
+        "expected": "mastered",
+        "actual": "partial",
+        "hit": false
+      },
+      {
+        "fixture_id": "cg_mastered_02",
+        "expected": "mastered",
+        "actual": "partial",
+        "hit": false
+      },
+      {
+        "fixture_id": "cg_partial_01",
+        "expected": "partial",
+        "actual": "not_mastered",
+        "hit": false
+      },
+      {
+        "fixture_id": "cg_partial_02",
+        "expected": "partial",
+        "actual": "not_mastered",
+        "hit": false
+      },
+      {
+        "fixture_id": "cg_not_mastered_01",
+        "expected": "not_mastered",
+        "actual": "not_mastered",
+        "hit": true
+      },
+      {
+        "fixture_id": "cg_not_mastered_02",
+        "expected": "not_mastered",
+        "actual": "not_mastered",
+        "hit": true
+      }
+    ]
+  },
+  "emotional_feedback": {
+    "metric": "feedback_feature_hit_rate",
+    "total_features": 20,
+    "hit_features": 8,
+    "hit_rate_pct": 40.0,
+    "quality_rules": {
+      "min_length": 100,
+      "max_length": 200,
+      "forbidden_phrases": [
+        "你真棒",
+        "继续努力",
+        "加油",
+        "注意审题",
+        "再接再厉"
+      ],
+      "required_elements": [
+        "具体引用",
+        "温暖语气",
+        "可操作建议"
+      ]
+    },
+    "groups": [
+      {
+        "fixture_id": "ef_compare_01",
+        "student_name": "李明",
+        "with_history_feedback": "李明同学，本次80分，比上次68分有进步，你在「导数求导步骤完整」上一直表现稳定，「逻辑跳跃」仍是需要重点突破的方向，订正提交率75%，闭环习惯很好，下一步：把错题对应的定义重抄一遍，下次做题先在草稿纸上列出已知条件再动笔。",
+        "with_history_hits": {
+          "引用得分趋势(68→80进步)": true,
+          "引用具体强项(配方步骤)": false,
+          "引用具体弱项(符号计算)": false,
+          "引用订正数据(75%订正率或掌握度)": true
+        },
+        "without_history_feedback": "李明同学，这是老师第一次批改你的作业，本次80分，整体不错，细节还能打磨，建议把错题对应的知识点重新梳理一遍，下次做题先在草稿纸上列出已知条件再动笔，每题留 10 秒检查符号和运算方向，错题订正后用自己的话写出错因。",
+        "without_history_hits": {
+          "不引用历史数据": false,
+          "基于本次得分(80分)给反馈": true,
+          "语气自然过渡(如'第一次批改')": false
+        }
+      },
+      {
+        "fixture_id": "ef_compare_02",
+        "student_name": "张伟",
+        "with_history_feedback": "张伟同学，本次95分，比上次90分有进步，你在「推理严密」上一直表现稳定，「压轴题时间不足」仍是需要重点突破的方向，订正提交率100%，闭环习惯很好，下一步：把错题对应的定义重抄一遍，下次做题先在草稿纸上列出已知条件再动笔。",
+        "with_history_hits": {
+          "引用连续上升趋势(88→92→90→95)": true,
+          "引用订正质量(4次全mastered)": false,
+          "针对压轴题时间给具体建议": false
+        },
+        "without_history_feedback": "张伟同学，这是老师第一次批改你的作业，本次95分，基础扎实，建议把错题对应的知识点重新梳理一遍，下次做题先在草稿纸上列出已知条件再动笔，每题留 10 秒检查符号和运算方向，错题订正后用自己的话写出错因。",
+        "without_history_hits": {
+          "基于本次95分评价": true,
+          "不提及订正历史": false,
+          "建议偏向通用(因无历史可引用)": false
+        }
+      },
+      {
+        "fixture_id": "ef_compare_03",
+        "student_name": "王芳",
+        "with_history_feedback": "王芳同学，本次55分，与上次55分持平，你在「选择题准确率尚可」上一直表现稳定，「概念混淆」仍是需要重点突破的方向，订正率仅30%，建议把错题及时订正，下一步：把错题对应的定义重抄一遍，下次做题先在草稿纸上列出已知条件再动笔。",
+        "with_history_hits": {
+          "引用下降趋势(60→55)": true,
+          "引用低订正率(30%)": true,
+          "针对概念混淆给具体复习建议": false,
+          "语气温暖不打击": false
+        },
+        "without_history_feedback": "王芳同学，这是老师第一次批改你的作业，本次55分，基础部分尚可，解答题需加强，丢分集中在概念混淆、未作答，建议把错题对应的知识点重新梳理一遍，下次做题先在草稿纸上列出已知条件再动笔，每题留 10 秒检查符号和运算方向。",
+        "without_history_hits": {
+          "基于本次55分评价": true,
+          "不提及趋势或订正": false,
+          "建议偏向首次作业通用引导": false
+        }
+      }
+    ]
+  },
+  "quality_issues": []
+}

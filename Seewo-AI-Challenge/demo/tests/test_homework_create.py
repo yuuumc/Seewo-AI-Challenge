@@ -182,7 +182,28 @@ class TestListAllHomeworks:
 
 
 class TestSubjectType:
-    """Test subject_type field in homework creation (Sprint 2 follow-up)."""
+    """Test subject_type field in homework creation (Sprint 2 follow-up).
+
+    Sprint 4 fix: these tests write via POST (which saves to PG when
+    available) but then read via ``load_json("questions.json")`` (JSON
+    fallback). When PG is running this mismatch causes assertion
+    failures. The fix forces JSON fallback for these tests by
+    monkeypatching ``db_store.is_pg_available`` to return False,
+    ensuring the POST handler writes to JSON — matching the read path.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _force_json_storage(self, monkeypatch):
+        """Force JSON fallback so write and read paths match."""
+        import db_store
+        monkeypatch.setattr(db_store, "is_pg_available", lambda: False)
+        # Also patch the app-level import if it was already imported
+        try:
+            import app as _app_mod
+            if hasattr(_app_mod, "is_pg_available"):
+                monkeypatch.setattr(_app_mod, "is_pg_available", lambda: False)
+        except ImportError:
+            pass
 
     def test_create_homework_with_subject_type(self, client):
         """POST with subject_type in questions should persist it."""

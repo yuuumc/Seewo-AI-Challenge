@@ -5,7 +5,14 @@ knowledge-point mapping, personalized comments, and multi-agent collaboration tr
 import json
 import math
 import re
+import threading
 from pathlib import Path
+
+# Reentrancy guard: prevents infinite recursion when
+# _attach_emotional_feedback → generate_emotional_feedback →
+# build_student_history → grade_long_answer (which would call
+# _attach_emotional_feedback again).
+_grading_in_progress = threading.local()
 
 # LLM provider abstraction (see engine/llm/). Optional dependency: the
 # functions in this module continue to work even if the engine.llm
@@ -156,7 +163,7 @@ def grade_long_answer(student_answer: str, question: dict, student_id: str) -> d
                 "correct": True,
                 "comment": "正确 ✓",
             })
-        return {
+        result = {
             "type": "long_answer",
             "student_answer": student_answer,
             "correct_answer": correct,
@@ -169,6 +176,10 @@ def grade_long_answer(student_answer: str, question: dict, student_id: str) -> d
             "overall_feedback": "解答完全正确，步骤清晰，逻辑严谨。继续保持！",
             "need_teacher_review": False,
         }
+        result["emotional_feedback"] = _attach_emotional_feedback(
+            student_id, question, result
+        )
+        return result
 
     # Students with errors
     for step in steps:
@@ -203,7 +214,7 @@ def grade_long_answer(student_answer: str, question: dict, student_id: str) -> d
     is_fully_correct = len(error_types) == 0
     ai_confidence = 0.85 if not is_fully_correct else 0.92
 
-    return {
+    result = {
         "type": "long_answer",
         "student_answer": student_answer,
         "correct_answer": correct,
@@ -216,6 +227,10 @@ def grade_long_answer(student_answer: str, question: dict, student_id: str) -> d
         "overall_feedback": _generate_overall_feedback(error_types, student_answer),
         "need_teacher_review": ai_confidence < 0.7,
     }
+    result["emotional_feedback"] = _attach_emotional_feedback(
+        student_id, question, result
+    )
+    return result
 
 
 
@@ -259,7 +274,50 @@ def grade_long_answer_with_trace(
         trace=collector,
     )
     _store_trace(collector)
+    # Sprint 4: 保证 emotional_feedback 字段在所有 provider 路径上都存在
+    # （OpenAIProvider / 多学科 mock 路径返回的 dict 不含该字段时补上）
+    if "emotional_feedback" not in result:
+        result["emotional_feedback"] = _attach_emotional_feedback(
+            student_id, question, result
+        )
     return result
+
+
+def _attach_emotional_feedback(
+    student_id: str,
+    question: dict,
+    grading_result: dict,
+) -> str:
+    """为批改结果附加情感化评语（Sprint 4）.
+
+    首次批改后生成：基于学生历史表现 + 本次批改结果。
+    无 LLM key 走规则化 mock 模板；有 key 走 LLM。
+
+    Reentrancy guard: ``generate_emotional_feedback`` may internally call
+    ``grade_long_answer`` (via ``build_student_history``), which would
+    recursively call this function. The guard breaks the cycle.
+    """
+    if getattr(_grading_in_progress, "active", False):
+        return ""
+    _grading_in_progress.active = True
+    try:
+        from engine.emotional_feedback import generate_emotional_feedback
+
+        current_performance = {
+            "score": grading_result.get("score", 0),
+            "max_score": grading_result.get("max_score", question.get("score", 0)),
+            "is_correct": grading_result.get("is_correct", False),
+            "error_types": grading_result.get("error_types", []),
+            "knowledge": question.get("knowledge", ""),
+        }
+        return generate_emotional_feedback(
+            student_id=student_id,
+            current_performance=current_performance,
+        )
+    except Exception:
+        return ""
+    finally:
+        _grading_in_progress.active = False
 
 
 def _get_suggested_fix(step: dict, error_type: str) -> str:

@@ -243,6 +243,10 @@ def grade_correction(
     if llm_result is not None:
         llm_result.setdefault("graded_by", "llm")
         llm_result.setdefault("timestamp", datetime.utcnow().isoformat())
+        if "emotional_feedback" not in llm_result:
+            llm_result["emotional_feedback"] = _attach_correction_emotional_feedback(
+                student_id, question, original_result, llm_result
+            )
         return llm_result
 
     # 2. Mock 规则引擎
@@ -257,7 +261,7 @@ def grade_correction(
         MASTERY_NOT_MASTERED: "回顾课本相关定义和例题，再尝试订正。",
     }
 
-    return {
+    result = {
         "mastery_level": mastery,
         "is_correct": is_correct,
         "comparison": comparison,
@@ -267,6 +271,40 @@ def grade_correction(
         "graded_by": "mock",
         "timestamp": datetime.utcnow().isoformat(),
     }
+    # Sprint 4: 订正批改后更新情感化评语
+    result["emotional_feedback"] = _attach_correction_emotional_feedback(
+        student_id, question, original_result, result
+    )
+    return result
+
+
+def _attach_correction_emotional_feedback(
+    student_id: str,
+    question: dict,
+    original_result: dict,
+    correction_result: dict,
+) -> str:
+    """订正批改后更新情感化评语（Sprint 4）.
+
+    输入 = 学生历史 + 本次订正表现（掌握度 + 原批改得分）。
+    """
+    try:
+        from engine.emotional_feedback import generate_emotional_feedback
+
+        current_performance = {
+            "score": original_result.get("score", 0),
+            "max_score": original_result.get("max_score", question.get("score", 0)),
+            "is_correct": correction_result.get("is_correct", False),
+            "error_types": original_result.get("error_types", []),
+            "knowledge": question.get("knowledge", ""),
+            "mastery_level": correction_result.get("mastery_level", ""),
+        }
+        return generate_emotional_feedback(
+            student_id=student_id,
+            current_performance=current_performance,
+        )
+    except Exception:
+        return ""
 
 
 def get_latest_mastery(attempts: list) -> str:

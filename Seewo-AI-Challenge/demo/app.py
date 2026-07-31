@@ -37,7 +37,7 @@ Usage:
 import os
 import sys
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash  # P0: 补 flash import（修 9 个 test_auth 500）
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session  # P0: 补 flash import（修 9 个 test_auth 500）
 
 from engine.grader import (
     grade_choice,
@@ -76,6 +76,8 @@ from security import (
     _demo_auth_open,
     register_error_handlers,
     DEMO_USERS,
+    has_consent,
+    require_consent,
 )
 
 app = Flask(__name__)
@@ -1011,6 +1013,7 @@ def api_ocr_upload():
 
 @app.route("/api/ocr/grade", methods=["POST"])
 @login_required
+@require_consent
 def api_ocr_grade():
     """学生上传答卷图片 → OCR 识别 → 直接走 grading 流程.
 
@@ -1175,6 +1178,7 @@ def _save_correction_record(
 
 @app.route("/api/correction/submit", methods=["POST"])
 @login_required
+@require_consent
 @csrf_protect
 @rate_limit(max_per_minute=20)
 def api_correction_submit():
@@ -1251,6 +1255,7 @@ def api_correction_submit():
         "encouragement": grading_result["encouragement"],
         "comparison": grading_result["comparison"],
         "next_steps": grading_result.get("next_steps", ""),
+        "emotional_feedback": grading_result.get("emotional_feedback", ""),
     })
 
 
@@ -1368,6 +1373,416 @@ def _count_pending_corrections(student_id: str) -> int:
                     pass
 
     return pending
+
+
+# ── Sprint 4 P0-3: 家长知情同意 ──────────────────────────────────────
+
+@app.route("/consent")
+@login_required
+def consent_page():
+    """Parental consent page — shown on student's first login.
+
+    Minors must acknowledge the data usage notice and have a parent/guardian
+    check the consent box before they can submit homework.
+    """
+    user = get_current_user()
+    # Non-students don't need consent
+    if user and user.get("role") != "student":
+        return redirect(url_for("index"))
+    # Already consented
+    if has_consent():
+        return redirect(url_for("index"))
+    return render_template("consent.html", user=user)
+
+
+@app.route("/consent", methods=["POST"])
+@login_required
+@csrf_protect
+def consent_submit():
+    """Handle parental consent form submission."""
+    user = get_current_user()
+    if not user:
+        return redirect(url_for("login"))
+    if user.get("role") != "student":
+        return redirect(url_for("index"))
+
+    agreed = request.form.get("parent_consent") == "on"
+    if not agreed:
+        flash("需要家长/监护人勾选同意才能继续使用。", "error")
+        return render_template("consent.html", user=user), 400
+
+    # Update consent in PG or DEMO_USERS
+    from db_store import set_consent as _db_set_consent
+    _db_set_consent(user.get("user_id", ""))
+
+    # Also update in-memory DEMO_USERS (JSON fallback)
+    if user.get("user_id") in DEMO_USERS:
+        DEMO_USERS[user["user_id"]]["consent_given"] = True
+
+    # Update session
+    session["consent_given"] = True
+
+    audit_log("consent_given", user_id=user.get("user_id"))
+    flash("感谢确认！您现在可以提交作业了。", "success")
+    return redirect(url_for("index"))
+
+
+# ── Sprint 4 P0-2: 数据删除/导出 API ─────────────────────────────────
+
+@app.route("/api/student/<student_id>/data", methods=["DELETE"])
+@login_required
+@csrf_protect
+def api_delete_student_data(student_id):
+    """Delete all data for a student (GDPR-style right to erasure).
+
+    Permission: students can only delete their own data;
+    teachers/admins can delete any student's data.
+    """
+    user = get_current_user()
+    if not user:
+        if _demo_auth_open():
+            pass  # demo mode: allow
+        else:
+            return jsonify({"ok": False, "error": "auth_required"}), 401
+
+    # Permission check: students can only operate on their own data
+    if user and user.get("role") == "student":
+        own = user.get("student_id", "")
+        if own and own != student_id:
+            audit_log("delete_data_idor_blocked", target=student_id, own=own)
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    from db_store import delete_student_data
+    summary = delete_student_data(student_id)
+
+    audit_log(
+        "student_data_deleted",
+        student_id=student_id,
+        deleted_by=user.get("user_id", "demo") if user else "demo",
+        **summary,
+    )
+
+    return jsonify({"ok": True, "deleted": summary})
+
+
+@app.route("/api/student/<student_id>/export")
+@login_required
+def api_export_student_data(student_id):
+    """Export all data for a student as JSON (GDPR-style data portability).
+
+    Permission: students can only export their own data;
+    teachers/admins can export any student's data.
+    """
+    user = get_current_user()
+    if not user:
+        if _demo_auth_open():
+            pass
+        else:
+            return jsonify({"ok": False, "error": "auth_required"}), 401
+
+    # Permission check
+    if user and user.get("role") == "student":
+        own = user.get("student_id", "")
+        if own and own != student_id:
+            audit_log("export_data_idor_blocked", target=student_id, own=own)
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    from db_store import export_student_data
+    data = export_student_data(student_id)
+
+    audit_log(
+        "student_data_exported",
+        student_id=student_id,
+        exported_by=user.get("user_id", "demo") if user else "demo",
+    )
+
+    return jsonify({"ok": True, "data": data})
+
+
+# ── Sprint 4: 教师端掌握度看板 ──────────────────────────────────────
+
+@app.route("/teacher/mastery")
+@login_required
+@roles_required("teacher", "head", "admin")
+def teacher_mastery_page():
+    """Teacher class mastery dashboard — per-question + per-student mastery view."""
+    # Reuse the API aggregation logic directly for server-side rendering
+    from engine.grader import load_json, get_correction_status
+
+    questions_all = load_json("questions.json")
+    corrections_data = load_json("corrections.json")
+    answers = load_json("answers.json")
+    students = load_json("students.json")["students"]
+
+    homeworks_result = []
+    for hw_key, hw_data in questions_all.items():
+        questions = hw_data.get("questions", [])
+        hw_questions = []
+        for q in questions:
+            qid = q["id"]
+            mastery_counts = {"mastered": 0, "partial": 0, "not_mastered": 0, "uncorrected": 0}
+            corr_key = f"{hw_key}_corrections"
+            hw_corrections = corrections_data.get(corr_key, {})
+            student_details = []
+            for s in students:
+                sid = s["id"]
+                submission_key = f"{sid}_{hw_key}"
+                sub = answers.get(submission_key, {})
+                sa = sub.get("answers", {}).get(qid, "")
+                if q.get("type") == "choice":
+                    orig_correct = sa.strip().upper() == q.get("answer", "").strip().upper()
+                elif q.get("type") == "fill_blank":
+                    orig_correct = sa.strip().replace(" ", "") == q.get("answer", "").strip().replace(" ", "")
+                else:
+                    result = grade_long_answer(sa, q, sid)
+                    orig_correct = result.get("is_correct", False)
+                if orig_correct:
+                    mastery_counts["mastered"] += 1
+                    student_details.append({"student": s, "mastery": "mastered", "original_answer": sa})
+                    continue
+                sub_key = f"{sid}_{qid}"
+                corr = hw_corrections.get(sub_key, {})
+                if corr:
+                    latest_mastery = "mastered" if corr.get("status") == "closed" else "partial"
+                    attempts = corr.get("attempts", [])
+                    if attempts:
+                        latest_mastery = attempts[-1].get("mastery_level", latest_mastery)
+                    if latest_mastery == "mastered":
+                        mastery_counts["mastered"] += 1
+                    elif latest_mastery == "partial":
+                        mastery_counts["partial"] += 1
+                    else:
+                        mastery_counts["not_mastered"] += 1
+                    student_details.append({"student": s, "mastery": latest_mastery, "original_answer": sa,
+                                           "correction_attempts": len(attempts)})
+                else:
+                    mastery_counts["uncorrected"] += 1
+                    student_details.append({"student": s, "mastery": "uncorrected", "original_answer": sa})
+            total = sum(mastery_counts.values())
+            mastery_rate = round(mastery_counts["mastered"] / total * 100, 1) if total > 0 else 0
+            hw_questions.append({
+                "question_id": qid, "stem": q.get("stem", "")[:80],
+                "full_stem": q.get("stem", ""), "knowledge": q.get("knowledge", ""),
+                "type": q.get("type", ""), "mastery_distribution": mastery_counts,
+                "mastery_rate": mastery_rate, "total_students": total,
+                "student_details": student_details,
+            })
+        hw_questions.sort(key=lambda x: x["mastery_rate"])
+        for i, q in enumerate(hw_questions[:3]):
+            q["weakest"] = True
+        homeworks_result.append({
+            "hw_key": hw_key, "title": hw_data.get("title", hw_key),
+            "subject": hw_data.get("subject", ""),
+            "questions": hw_questions,
+        })
+
+    students_result = []
+    for s in students:
+        sid = s["id"]
+        correction_count = 0
+        closed_count = 0
+        latest_time = ""
+        for hw_key in questions_all:
+            corr_key = f"{hw_key}_corrections"
+            hw_corrections = corrections_data.get(corr_key, {})
+            for sub_key, rec in hw_corrections.items():
+                if rec.get("student_id") != sid:
+                    continue
+                correction_count += 1
+                if rec.get("status") == "closed":
+                    closed_count += 1
+                attempts = rec.get("attempts", [])
+                if attempts:
+                    t = attempts[-1].get("timestamp", "")
+                    if t > latest_time:
+                        latest_time = t
+        status = get_correction_status(sid, "hw_001")
+        mastery_rate = status.get("loop_rate", 100)
+        students_result.append({
+            "student_id": sid, "name": s.get("name", sid),
+            "avatar_color": s.get("avatar_color", "#ccc"),
+            "correction_count": correction_count, "closed_count": closed_count,
+            "pending_count": correction_count - closed_count,
+            "latest_correction_time": latest_time, "mastery_rate": mastery_rate,
+        })
+
+    return render_template("teacher_mastery.html",
+                           homeworks=homeworks_result, students=students_result,
+                           total_students=len(students))
+
+
+# ── Sprint 4: 教师端掌握度看板 API ───────────────────────────────────
+
+@app.route("/api/teacher/mastery")
+@login_required
+@roles_required("teacher", "head", "admin")
+def api_teacher_mastery():
+    """Aggregate class-wide mastery data for the teacher dashboard.
+
+    Returns per-homework → per-question mastery distribution and
+    per-student correction progress. Data sourced from corrections +
+    submissions (JSON fallback or PG).
+
+    Response contract:
+        {
+          "homeworks": [
+            {
+              "hw_key": "hw_001",
+              "title": "...",
+              "questions": [
+                {
+                  "question_id": "q5",
+                  "stem": "...",
+                  "knowledge": "...",
+                  "mastery_distribution": {
+                    "mastered": 2,
+                    "partial": 1,
+                    "not_mastered": 1,
+                    "uncorrected": 1
+                  },
+                  "weakest": true   // top-3 lowest mastery rate
+                }
+              ]
+            }
+          ],
+          "students": [
+            {
+              "student_id": "s01",
+              "name": "同学A",
+              "avatar_color": "#...",
+              "correction_count": 3,
+              "closed_count": 2,
+              "pending_count": 1,
+              "latest_correction_time": "2026-07-30T...",
+              "mastery_rate": 66.7
+            }
+          ]
+        }
+    """
+    from engine.grader import load_json, get_correction_status
+
+    questions_all = load_json("questions.json")
+    corrections_data = load_json("corrections.json")
+    answers = load_json("answers.json")
+    students = load_json("students.json")["students"]
+
+    homeworks_result = []
+
+    for hw_key, hw_data in questions_all.items():
+        questions = hw_data.get("questions", [])
+        hw_questions = []
+
+        for q in questions:
+            qid = q["id"]
+            # Count mastery levels across all students
+            mastery_counts = {"mastered": 0, "partial": 0, "not_mastered": 0, "uncorrected": 0}
+            corr_key = f"{hw_key}_corrections"
+            hw_corrections = corrections_data.get(corr_key, {})
+
+            for s in students:
+                sid = s["id"]
+                # Check if the student got this question wrong
+                submission_key = f"{sid}_{hw_key}"
+                sub = answers.get(submission_key, {})
+                sa = sub.get("answers", {}).get(qid, "")
+
+                # Determine if originally correct
+                if q.get("type") == "choice":
+                    orig_correct = sa.strip().upper() == q.get("answer", "").strip().upper()
+                elif q.get("type") == "fill_blank":
+                    orig_correct = sa.strip().replace(" ", "") == q.get("answer", "").strip().replace(" ", "")
+                else:
+                    result = grade_long_answer(sa, q, sid)
+                    orig_correct = result.get("is_correct", False)
+
+                if orig_correct:
+                    mastery_counts["mastered"] += 1
+                    continue
+
+                # Check correction status
+                sub_key = f"{sid}_{qid}"
+                corr = hw_corrections.get(sub_key, {})
+                if corr:
+                    latest_mastery = "mastered" if corr.get("status") == "closed" else "partial"
+                    attempts = corr.get("attempts", [])
+                    if attempts:
+                        latest_mastery = attempts[-1].get("mastery_level", latest_mastery)
+                    if latest_mastery == "mastered":
+                        mastery_counts["mastered"] += 1
+                    elif latest_mastery == "partial":
+                        mastery_counts["partial"] += 1
+                    else:
+                        mastery_counts["not_mastered"] += 1
+                else:
+                    mastery_counts["uncorrected"] += 1
+
+            total = sum(mastery_counts.values())
+            mastery_rate = round(mastery_counts["mastered"] / total * 100, 1) if total > 0 else 0
+
+            hw_questions.append({
+                "question_id": qid,
+                "stem": q.get("stem", "")[:60],
+                "knowledge": q.get("knowledge", ""),
+                "type": q.get("type", ""),
+                "mastery_distribution": mastery_counts,
+                "mastery_rate": mastery_rate,
+                "total_students": total,
+            })
+
+        # Mark top-3 weakest questions
+        hw_questions.sort(key=lambda x: x["mastery_rate"])
+        for i, q in enumerate(hw_questions[:3]):
+            q["weakest"] = True
+
+        homeworks_result.append({
+            "hw_key": hw_key,
+            "title": hw_data.get("title", hw_key),
+            "questions": hw_questions,
+        })
+
+    # Per-student progress
+    students_result = []
+    for s in students:
+        sid = s["id"]
+        correction_count = 0
+        closed_count = 0
+        latest_time = ""
+
+        for hw_key in questions_all:
+            corr_key = f"{hw_key}_corrections"
+            hw_corrections = corrections_data.get(corr_key, {})
+            for sub_key, rec in hw_corrections.items():
+                if rec.get("student_id") != sid:
+                    continue
+                correction_count += 1
+                if rec.get("status") == "closed":
+                    closed_count += 1
+                attempts = rec.get("attempts", [])
+                if attempts:
+                    t = attempts[-1].get("timestamp", "")
+                    if t > latest_time:
+                        latest_time = t
+
+        # Overall mastery rate from correction status
+        status = get_correction_status(sid, "hw_001")
+        mastery_rate = status.get("loop_rate", 100)
+
+        students_result.append({
+            "student_id": sid,
+            "name": s.get("name", sid),
+            "avatar_color": s.get("avatar_color", "#ccc"),
+            "correction_count": correction_count,
+            "closed_count": closed_count,
+            "pending_count": correction_count - closed_count,
+            "latest_correction_time": latest_time,
+            "mastery_rate": mastery_rate,
+        })
+
+    return jsonify({
+        "ok": True,
+        "homeworks": homeworks_result,
+        "students": students_result,
+    })
 
 
 if __name__ == "__main__":

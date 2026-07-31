@@ -1,38 +1,45 @@
-"""Alembic env（Phase 1 初始化版本）.
+"""Alembic env — sync engine (Sprint 4 fix).
 
-用法：
-    # 初始化（已完成，本文件为模板）
-    alembic init -t async infra/pg/migrations
+Uses the sync DSN (psycopg2) so ``alembic upgrade head`` works with
+``DATABASE_URL_SYNC`` without needing asyncpg event loop.
 
-    # 生成新迁移
-    alembic revision --autogenerate -m "add xxx"
-
-    # 升级
-    alembic upgrade head
+The ``sqlalchemy.url`` is resolved in this order:
+  1. ``DATABASE_URL_SYNC`` env var (preferred — set by docker-compose)
+  2. ``DATABASE_URL`` env var (asyncpg suffix stripped)
+  3. ``alembic.ini`` ``sqlalchemy.url`` fallback
 """
 from __future__ import annotations
 
-import asyncio
+import os
 from logging.config import fileConfig
 
-from alembic import context
-from sqlalchemy import pool
-from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy import engine_from_config, pool
 
-# 导入 ORM Base 以便 autogenerate 识别模型
-from infra.pg.orm import Base
+from alembic import context
 
 config = context.config
+
+# Resolve DSN from environment (overrides alembic.ini)
+_sync_url = (
+    os.environ.get("DATABASE_URL_SYNC")
+    or os.environ.get("DATABASE_URL", "").replace("+asyncpg", "+psycopg2")
+)
+if _sync_url:
+    config.set_main_option("sqlalchemy.url", _sync_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+# Import ORM Base so autogenerate can detect models
+try:
+    from infra.pg.orm import Base
+    target_metadata = Base.metadata
+except ImportError:
+    target_metadata = None
 
 
 def run_migrations_offline() -> None:
-    """离线模式：生成 SQL 脚本，不连数据库。"""
+    """Offline mode: generate SQL scripts without connecting to DB."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -44,25 +51,20 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-async def run_migrations_online() -> None:
-    """在线模式：连数据库跑迁移。"""
-    connectable = async_engine_from_config(
+def run_migrations_online() -> None:
+    """Online mode: connect to DB and run migrations (sync engine)."""
+    connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    asyncio.run(run_migrations_online())
+    run_migrations_online()

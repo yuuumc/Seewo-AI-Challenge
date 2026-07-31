@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}家长知情同意 — 希沃智教π{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
+  <div class="max-w-2xl w-full bg-white rounded-2xl shadow-lg p-8">
+    <div class="text-center mb-6">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-primary-50 rounded-full mb-4">
+        <svg class="w-8 h-8 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900">未成年人学情数据使用告知</h1>
+      <p class="text-gray-500 mt-2">请家长/监护人仔细阅读并确认</p>
+    </div>
+
+    <div class="bg-gray-50 rounded-xl p-6 mb-6 space-y-4 text-sm text-gray-700 leading-relaxed">
+      <div>
+        <h3 class="font-semibold text-gray-900 mb-1">数据收集范围</h3>
+        <p>本系统收集以下学情数据：学生 ID、昵称、班级、答题数据（含手写内容 OCR 识别结果）、订正记录、学情分析结果。不收集手机号、身份证号、位置信息等非必要个人信息。</p>
+      </div>
+      <div>
+        <h3 class="font-semibold text-gray-900 mb-1">数据使用目的</h3>
+        <p>学情数据仅用于 AI 智能批改、个性化反馈、订正闭环追踪和教学分析，不会用于商业目的或共享给第三方。</p>
+      </div>
+      <div>
+        <h3 class="font-semibold text-gray-900 mb-1">数据存储与安全</h3>
+        <p>数据存储于境内服务器，采用加密传输和访问控制。AI 批改过程中，学生身份信息会进行匿名化处理，不会以原始形式发送给外部 AI 服务。</p>
+      </div>
+      <div>
+        <h3 class="font-semibold text-gray-900 mb-1">您的权利</h3>
+        <p>根据《个人信息保护法》和《未成年人网络保护条例》，您有权随时导出或删除学生的全部学情数据。如需操作，请联系教师或管理员。</p>
+      </div>
+      <div>
+        <h3 class="font-semibold text-gray-900 mb-1">数据保留期限</h3>
+        <p>学情数据在学生毕业后保留 2 年，届时将自动匿名化处理。您也可随时申请提前删除。</p>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('consent_submit') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="flex items-start gap-3 p-4 bg-primary-50 rounded-xl cursor-pointer hover:bg-primary-100 transition mb-6">
+        <input type="checkbox" name="parent_consent" class="mt-1 w-5 h-5 text-primary-500 rounded border-gray-300 focus:ring-primary-400">
+        <span class="text-sm text-gray-700">
+          我已阅读并理解上述告知内容，作为该学生的家长/监护人，我同意系统收集和使用上述学情数据用于教学目的。
+        </span>
+      </label>
+      <button type="submit"
+        class="w-full py-3 bg-primary-500 text-white font-medium rounded-xl hover:bg-primary-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        onclick="if(!this.form.parent_consent.checked){alert('请先勾选同意');return false;}">
+        确认同意
+      </button>
+    </form>
+
+    <p class="text-xs text-gray-400 text-center mt-4">
+      法律依据：《个人信息保护法》《未成年人保护法》《数据安全法》《未成年人网络保护条例》
+    </p>
+  </div>
+</div>
+{% endblock %}

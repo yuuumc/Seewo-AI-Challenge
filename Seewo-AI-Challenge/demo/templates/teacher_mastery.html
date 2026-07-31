@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}班级掌握度看板 — 希沃智教π{% endblock %}
+{% block nav %}
+  {% set active = 'mastery' %}{% include "_nav_teacher.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-4 mb-6 animate-slide-up">
+  <div>
+    <h1 class="text-2xl font-extrabold text-gray-900">班级掌握度看板</h1>
+    <p class="text-sm text-gray-400 mt-1">订正闭环 · 全班谁掌握了、谁还卡着 — 一屏看清</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="score-pill good text-xs"><span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span> 已掌握</span>
+    <span class="score-pill warn text-xs"><span class="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1"></span> 部分掌握</span>
+    <span class="score-pill bad text-xs"><span class="inline-block w-2 h-2 rounded-full bg-red-500 mr-1"></span> 未掌握</span>
+    <span class="score-pill text-xs" style="background:#f3f4f6;color:#9ca3af;"><span class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-1"></span> 未订正</span>
+  </div>
+</div>
+
+{# ── 汇总卡片 ── #}
+<div class="stats-grid stagger mb-6">
+  <div class="stat-card">
+    <div class="stat-value text-primary-400">{{ total_students }}</div>
+    <div class="stat-label">全班人数</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value text-green-500">{{ students|selectattr('mastery_rate','>=',80)|list|length }}</div>
+    <div class="stat-label">高掌握 (≥80%)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value text-amber-500">{{ students|selectattr('pending_count','>',0)|list|length }}</div>
+    <div class="stat-label">待跟进订正</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value text-indigo-500">{{ homeworks|length }}</div>
+    <div class="stat-label">作业数</div>
+  </div>
+</div>
+
+{# ── 按作业 → 按题目展示掌握度分布 ── #}
+{% for hw in homeworks %}
+<div class="content-card mb-6">
+  <div class="content-card-header">
+    <span class="content-card-title">{{ hw.title }}</span>
+    {% if hw.subject %}<span class="score-pill good text-xs">{{ hw.subject }}</span>{% endif %}
+  </div>
+
+  {# 薄弱题目 Top 3 提示 #}
+  {% set weak_questions = hw.questions|selectattr('weakest')|list %}
+  {% if weak_questions %}
+  <div class="px-5 py-3 bg-red-50 border-b border-red-100 flex items-center gap-2">
+    <i data-lucide="alert-circle" class="w-4 h-4 text-red-500 flex-shrink-0"></i>
+    <span class="text-sm text-red-700 font-medium">薄弱题目 Top {{ weak_questions|length }}：</span>
+    {% for q in weak_questions %}
+    <span class="text-xs text-red-600 bg-white px-2 py-0.5 rounded-full border border-red-200">{{ q.question_id|upper }} · {{ q.mastery_rate }}%</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>题目</th>
+          <th>知识点</th>
+          <th>题型</th>
+          <th>已掌握</th>
+          <th>部分掌握</th>
+          <th>未掌握</th>
+          <th>未订正</th>
+          <th>掌握率</th>
+          <th>分布</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for q in hw.questions %}
+        <tr class="cursor-pointer hover:bg-gray-50 transition-colors" onclick="toggleDetail('detail-{{ hw.hw_key }}-{{ q.question_id }}')">
+          <td class="font-bold text-sm">
+            {{ q.question_id|upper }}
+            {% if q.weakest %}<span class="ml-1 text-red-500" title="薄弱题目">⚠</span>{% endif %}
+            <div class="text-xs text-gray-400 font-normal max-w-[200px] truncate">{{ q.stem }}</div>
+          </td>
+          <td class="text-xs text-gray-500">{{ q.knowledge }}</td>
+          <td>
+            {% if q.type == 'choice' %}<span class="score-pill good text-xs">选择</span>
+            {% elif q.type == 'fill_blank' %}<span class="score-pill warn text-xs">填空</span>
+            {% else %}<span class="score-pill text-xs" style="background:#eef1fe;color:#1d4ed8;">解答</span>{% endif %}
+          </td>
+          <td class="font-bold text-green-600">{{ q.mastery_distribution.mastered }}</td>
+          <td class="font-bold text-amber-600">{{ q.mastery_distribution.partial }}</td>
+          <td class="font-bold text-red-600">{{ q.mastery_distribution.not_mastered }}</td>
+          <td class="font-bold text-gray-400">{{ q.mastery_distribution.uncorrected }}</td>
+          <td>
+            <span class="font-bold {% if q.mastery_rate >= 80 %}text-green-600{% elif q.mastery_rate >= 50 %}text-amber-600{% else %}text-red-600{% endif %}">{{ q.mastery_rate }}%</span>
+          </td>
+          <td>
+            <div class="flex h-5 w-32 rounded overflow-hidden bg-gray-100">
+              {% set total = q.total_students if q.total_students > 0 else 1 %}
+              {% set m_pct = (q.mastery_distribution.mastered / total * 100)|round %}
+              {% set p_pct = (q.mastery_distribution.partial / total * 100)|round %}
+              {% set n_pct = (q.mastery_distribution.not_mastered / total * 100)|round %}
+              {% set u_pct = (q.mastery_distribution.uncorrected / total * 100)|round %}
+              {% if m_pct > 0 %}<div style="width:{{ m_pct }}%" class="bg-green-500" title="已掌握 {{ q.mastery_distribution.mastered }}"></div>{% endif %}
+              {% if p_pct > 0 %}<div style="width:{{ p_pct }}%" class="bg-amber-500" title="部分掌握 {{ q.mastery_distribution.partial }}"></div>{% endif %}
+              {% if n_pct > 0 %}<div style="width:{{ n_pct }}%" class="bg-red-500" title="未掌握 {{ q.mastery_distribution.not_mastered }}"></div>{% endif %}
+              {% if u_pct > 0 %}<div style="width:{{ u_pct }}%" class="bg-gray-300" title="未订正 {{ q.mastery_distribution.uncorrected }}"></div>{% endif %}
+            </div>
+          </td>
+        </tr>
+        {# 下钻：该题各学生状态 #}
+        <tr id="detail-{{ hw.hw_key }}-{{ q.question_id }}" class="hidden">
+          <td colspan="9" class="bg-gray-50 px-5 py-3">
+            <div class="text-xs text-gray-400 mb-2">{{ q.full_stem }}</div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+              {% for sd in q.student_details %}
+              <div class="flex items-center gap-2 p-2 rounded-lg bg-white border {% if sd.mastery == 'mastered' %}border-green-200{% elif sd.mastery == 'partial' %}border-amber-200{% elif sd.mastery == 'not_mastered' %}border-red-200{% else %}border-gray-200{% endif %}">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style="background:{{ sd.student.avatar_color }};">{{ sd.student.name[0] }}</div>
+                <div class="min-w-0">
+                  <div class="text-xs font-bold truncate">{{ sd.student.name }}</div>
+                  <div class="text-xs {% if sd.mastery == 'mastered' %}text-green-600{% elif sd.mastery == 'partial' %}text-amber-600{% elif sd.mastery == 'not_mastered' %}text-red-600{% else %}text-gray-400{% endif %}">
+                    {% if sd.mastery == 'mastered' %}✓ 已掌握{% elif sd.mastery == 'partial' %}◐ 部分掌握{% elif sd.mastery == 'not_mastered' %}✗ 未掌握{% else %}○ 未订正{% endif %}
+                    {% if sd.correction_attempts %}· {{ sd.correction_attempts }}次订正{% endif %}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+{# ── 按学生展示掌握度进度 ── #}
+<div class="content-card">
+  <div class="content-card-header">
+    <span class="content-card-title">学生掌握度进度</span>
+    <span class="text-xs text-gray-400">订正积极性 + 闭环率</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>学生</th>
+          <th>掌握率</th>
+          <th>订正总数</th>
+          <th>已闭环</th>
+          <th>待跟进</th>
+          <th>最近订正</th>
+          <th>进度</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in students %}
+        <tr>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style="background:{{ s.avatar_color }};">{{ s.name[0] }}</div>
+              <span class="font-bold text-sm">{{ s.name }}</span>
+            </div>
+          </td>
+          <td>
+            <span class="font-bold {% if s.mastery_rate >= 80 %}text-green-600{% elif s.mastery_rate >= 50 %}text-amber-600{% else %}text-red-600{% endif %}">{{ s.mastery_rate }}%</span>
+          </td>
+          <td class="font-bold">{{ s.correction_count }}</td>
+          <td class="font-bold text-green-600">{{ s.closed_count }}</td>
+          <td class="font-bold {% if s.pending_count > 0 %}text-amber-600{% endif %}">{{ s.pending_count }}</td>
+          <td class="text-xs text-gray-400">{{ s.latest_correction_time[:10] if s.latest_correction_time else '—' }}</td>
+          <td>
+            <div class="w-24 h-2 rounded-full bg-gray-100 overflow-hidden">
+              <div class="h-full rounded-full {% if s.mastery_rate >= 80 %}bg-green-500{% elif s.mastery_rate >= 50 %}bg-amber-500{% else %}bg-red-500{% endif %}" style="width:{{ s.mastery_rate }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function toggleDetail(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.toggle('hidden');
+}
+</script>
+{% endblock %}

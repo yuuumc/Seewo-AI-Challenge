@@ -91,6 +91,7 @@ def get_user(username: str) -> Optional[dict]:
                         "student_id": user.username if user.role == "student" else None,
                         "avatar_color": user.avatar_color,
                         "level": user.student_level,
+                        "consent_given": getattr(user, "consent_given", False),
                         "db_id": user.id,
                     }
         except Exception as e:
@@ -168,3 +169,241 @@ def reset_pg_cache() -> None:
     global _pg_available, _pg_engine
     _pg_available = None
     _pg_engine = None
+
+
+# ── Sprint 4 P0-3: 家长知情同意 ──────────────────────────────────────
+
+def set_consent(username: str) -> bool:
+    """Mark a user as having given parental consent (PG only).
+
+    Returns True on success, False if PG unavailable or user not found.
+    """
+    if not is_pg_available():
+        return False
+    try:
+        from infra.pg.orm import User
+        engine = _get_pg_engine()
+        with Session(engine) as session:
+            user = session.execute(
+                select(User).where(User.username == username)
+            ).scalar_one_or_none()
+            if user:
+                user.consent_given = True
+                session.commit()
+                return True
+        return False
+    except Exception as e:
+        logger.warning("Failed to set consent for %s: %s", username, e)
+        return False
+
+
+# ── Sprint 4 P0-2: 数据删除/导出 ──────────────────────────────────────
+
+def delete_student_data(student_id: str) -> dict:
+    """Delete all data associated with a student (submissions, corrections, analytics).
+
+    Works on both PG (if available) and JSON storage paths.
+    Returns a summary dict: {deleted_submissions, deleted_corrections, deleted_analytics, storage}
+    """
+    summary = {"deleted_submissions": 0, "deleted_corrections": 0, "deleted_analytics": 0, "storage": "json"}
+
+    # --- PG path ---
+    if is_pg_available():
+        try:
+            from infra.pg.orm import User, Submission, Correction, AnalyticsSnapshot
+            engine = _get_pg_engine()
+            with Session(engine) as session:
+                user = session.execute(
+                    select(User).where(User.username == student_id)
+                ).scalar_one_or_none()
+                if user:
+                    # Delete submissions
+                    subs = session.execute(
+                        select(Submission).where(Submission.student_id == user.id)
+                    ).scalars().all()
+                    for s in subs:
+                        session.delete(s)
+                    summary["deleted_submissions"] = len(subs)
+
+                    # Delete corrections
+                    corrs = session.execute(
+                        select(Correction).where(Correction.student_id == user.id)
+                    ).scalars().all()
+                    for c in corrs:
+                        session.delete(c)
+                    summary["deleted_corrections"] = len(corrs)
+
+                    # Delete analytics snapshots
+                    snaps = session.execute(
+                        select(AnalyticsSnapshot).where(AnalyticsSnapshot.student_id == user.id)
+                    ).scalars().all()
+                    for s in snaps:
+                        session.delete(s)
+                    summary["deleted_analytics"] = len(snaps)
+
+                    session.commit()
+            summary["storage"] = "pg"
+            return summary
+        except Exception as e:
+            logger.warning("PG delete failed for %s: %s, falling back to JSON", student_id, e)
+
+    # --- JSON fallback path ---
+    import json as _json
+    _data_dir = os.path.join(os.path.dirname(__file__), "data")
+
+    # Delete from answers.json (submissions)
+    answers_path = os.path.join(_data_dir, "answers.json")
+    try:
+        with open(answers_path, "r", encoding="utf-8") as f:
+            answers = _json.load(f)
+        keys_to_delete = [k for k, v in answers.items() if v.get("student_id") == student_id]
+        for k in keys_to_delete:
+            del answers[k]
+        summary["deleted_submissions"] = len(keys_to_delete)
+        with open(answers_path, "w", encoding="utf-8") as f:
+            _json.dump(answers, f, ensure_ascii=False, indent=2)
+    except (FileNotFoundError, _json.JSONDecodeError):
+        pass
+
+    # Delete from corrections.json
+    corrections_path = os.path.join(_data_dir, "corrections.json")
+    try:
+        with open(corrections_path, "r", encoding="utf-8") as f:
+            corrections = _json.load(f)
+        for hw_key in list(corrections.keys()):
+            hw_corrections = corrections[hw_key]
+            sub_keys_to_delete = [
+                sk for sk, rec in hw_corrections.items()
+                if rec.get("student_id") == student_id
+            ]
+            for sk in sub_keys_to_delete:
+                del hw_corrections[sk]
+            summary["deleted_corrections"] += len(sub_keys_to_delete)
+        with open(corrections_path, "w", encoding="utf-8") as f:
+            _json.dump(corrections, f, ensure_ascii=False, indent=2)
+    except (FileNotFoundError, _json.JSONDecodeError):
+        pass
+
+    # Delete analytics snapshots (growth_report, student_dashboard, knowledge_tree)
+    for fname in ("growth_report.json", "student_dashboard.json", "knowledge_tree.json"):
+        fpath = os.path.join(_data_dir, fname)
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                data = _json.load(f)
+            if isinstance(data, dict) and student_id in data:
+                del data[student_id]
+                with open(fpath, "w", encoding="utf-8") as f:
+                    _json.dump(data, f, ensure_ascii=False, indent=2)
+                summary["deleted_analytics"] += 1
+        except (FileNotFoundError, _json.JSONDecodeError):
+            pass
+
+    summary["storage"] = "json"
+    return summary
+
+
+def export_student_data(student_id: str) -> dict:
+    """Export all data associated with a student as a JSON-serializable dict.
+
+    Works on both PG (if available) and JSON storage paths.
+    Returns a dict with student profile, submissions, corrections, and analytics.
+    """
+    export: dict = {"student_id": student_id, "submissions": [], "corrections": [], "analytics": {}}
+
+    # --- PG path ---
+    if is_pg_available():
+        try:
+            from infra.pg.orm import User, Submission, Correction, AnalyticsSnapshot
+            engine = _get_pg_engine()
+            with Session(engine) as session:
+                user = session.execute(
+                    select(User).where(User.username == student_id)
+                ).scalar_one_or_none()
+                if user:
+                    export["profile"] = {
+                        "username": user.username,
+                        "display_name": user.display_name,
+                        "role": user.role,
+                        "consent_given": getattr(user, "consent_given", False),
+                        "created_at": str(user.created_at) if user.created_at else None,
+                        "last_login_at": str(user.last_login_at) if user.last_login_at else None,
+                    }
+
+                    subs = session.execute(
+                        select(Submission).where(Submission.student_id == user.id)
+                    ).scalars().all()
+                    for s in subs:
+                        export["submissions"].append({
+                            "submission_key": s.submission_key,
+                            "answers": s.answers,
+                            "submitted_at": str(s.submitted_at) if s.submitted_at else None,
+                        })
+
+                    corrs = session.execute(
+                        select(Correction).where(Correction.student_id == user.id)
+                    ).scalars().all()
+                    for c in corrs:
+                        export["corrections"].append({
+                            "homework_key": c.homework_key,
+                            "question_id": c.question_id,
+                            "original_answer": c.original_answer,
+                            "attempts": c.attempts,
+                            "status": c.status,
+                            "created_at": str(c.created_at) if c.created_at else None,
+                        })
+
+                    snaps = session.execute(
+                        select(AnalyticsSnapshot).where(AnalyticsSnapshot.student_id == user.id)
+                    ).scalars().all()
+                    for s in snaps:
+                        export["analytics"][s.snapshot_type] = s.data
+            return export
+        except Exception as e:
+            logger.warning("PG export failed for %s: %s, falling back to JSON", student_id, e)
+
+    # --- JSON fallback path ---
+    from engine.grader import load_json
+
+    # Profile from students.json
+    students = load_json("students.json").get("students", [])
+    student = next((s for s in students if s["id"] == student_id), None)
+    if student:
+        export["profile"] = student
+
+    # Submissions from answers.json
+    answers = load_json("answers.json")
+    for key, record in answers.items():
+        if record.get("student_id") == student_id:
+            export["submissions"].append({
+                "submission_key": key,
+                "assignment_id": record.get("assignment_id", ""),
+                "answers": record.get("answers", {}),
+            })
+
+    # Corrections from corrections.json
+    corrections = load_json("corrections.json")
+    for hw_key, hw_corrections in corrections.items():
+        for sub_key, record in hw_corrections.items():
+            if record.get("student_id") == student_id:
+                export["corrections"].append({
+                    "homework_key": hw_key.replace("_corrections", ""),
+                    "question_id": record.get("question_id", ""),
+                    "original_answer": record.get("original_answer", ""),
+                    "attempts": record.get("attempts", []),
+                    "status": record.get("status", "open"),
+                })
+
+    # Analytics from JSON files
+    for fname, key in [
+        ("growth_report.json", "growth_report"),
+        ("student_dashboard.json", "student_dashboard"),
+        ("knowledge_tree.json", "knowledge_tree"),
+    ]:
+        try:
+            data = load_json(fname)
+            if isinstance(data, dict) and student_id in data:
+                export["analytics"][key] = data[student_id]
+        except Exception:
+            pass
+
+    return export

@@ -89,46 +89,54 @@ DEMO_USERS: dict = {
         "name": "李老师",
         "role": "teacher",
         "password_hash": "",
+        "consent_given": True,
     },
     "head": {
         "name": "王组长",
         "role": "head",
         "password_hash": "",
+        "consent_given": True,
     },
     "admin": {
         "name": "张主任",
         "role": "admin",
         "password_hash": "",
+        "consent_given": True,
     },
     "s01": {
         "name": "同学A",
         "role": "student",
         "student_id": "s01",
         "password_hash": "",
+        "consent_given": False,
     },
     "s02": {
         "name": "同学B",
         "role": "student",
         "student_id": "s02",
         "password_hash": "",
+        "consent_given": False,
     },
     "s03": {
         "name": "同学C",
         "role": "student",
         "student_id": "s03",
         "password_hash": "",
+        "consent_given": False,
     },
     "s04": {
         "name": "同学D",
         "role": "student",
         "student_id": "s04",
         "password_hash": "",
+        "consent_given": False,
     },
     "s05": {
         "name": "同学E",
         "role": "student",
         "student_id": "s05",
         "password_hash": "",
+        "consent_given": False,
     },
 }
 
@@ -506,6 +514,43 @@ def check_ownership(student_id: str) -> None:
         if own and own != student_id:
             audit_log("idor_blocked", target=student_id, own=own)
             abort(403)
+
+
+# ---------------------------------------------------------------------------
+# Parental consent (Sprint 4 P0-3)
+# ---------------------------------------------------------------------------
+def has_consent() -> bool:
+    """Check whether the current user has given parental consent.
+
+    Returns True for:
+      - Non-student users (teachers, heads, admins)
+      - Demo mode (DEMO_AUTH_OPEN=1) — consent auto-granted
+      - Students whose ``consent_given`` field is True
+    """
+    if _demo_auth_open():
+        return True
+    user = get_current_user()
+    if not user:
+        return False
+    if user.get("role") != "student":
+        return True
+    return bool(user.get("consent_given", False))
+
+
+def require_consent(fn: Callable) -> Callable:
+    """Block homework submission for students who haven't given consent.
+
+    P0-3: Students must complete the parental consent flow before
+    submitting homework. Non-student roles and demo mode bypass this.
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        if has_consent():
+            return fn(*args, **kwargs)
+        if request.path.startswith("/api/"):
+            return jsonify({"ok": False, "error": "consent_required"}), 403
+        return redirect(url_for("consent_page"))
+    return wrapper
 
 
 # ---------------------------------------------------------------------------

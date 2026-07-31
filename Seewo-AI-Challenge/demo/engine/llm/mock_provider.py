@@ -15,6 +15,7 @@ import time
 from typing import Any, Dict, Optional
 
 from engine.llm.base import LLMProvider, TraceCollector
+from engine.llm.pseudonym import pseudonymize_student_id
 
 
 def _mock_multi_subject_grade(
@@ -150,7 +151,7 @@ class MockProvider(LLMProvider):
                 stage="math_grading",
                 input_payload={
                     "question_id": question.get("id"),
-                    "student_id": student_id,
+                    "student_id": pseudonymize_student_id(student_id),
                     "student_answer_length": len(student_answer or ""),
                     "expected_answer_length": len(standard_answer or ""),
                     "subject_type": subject_type or "math_calculation",
@@ -235,7 +236,7 @@ class MockProvider(LLMProvider):
             trace.record(
                 stage="comment_generation",
                 input_payload={
-                    "student_id": student.get("id"),
+                    "student_id": pseudonymize_student_id(student.get("id", "")),
                     "assignment_id": performance.get("assignment_id"),
                     "performance_keys": sorted(performance.keys()),
                 },
