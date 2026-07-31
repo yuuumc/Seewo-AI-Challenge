@@ -90,18 +90,21 @@ DEMO_USERS: dict = {
         "role": "teacher",
         "password_hash": "",
         "consent_given": True,
+        "school_id": 1,
     },
     "head": {
         "name": "王组长",
         "role": "head",
         "password_hash": "",
         "consent_given": True,
+        "school_id": 1,
     },
     "admin": {
         "name": "张主任",
         "role": "admin",
         "password_hash": "",
         "consent_given": True,
+        "school_id": 1,
     },
     "s01": {
         "name": "同学A",
@@ -109,6 +112,7 @@ DEMO_USERS: dict = {
         "student_id": "s01",
         "password_hash": "",
         "consent_given": False,
+        "school_id": 1,
     },
     "s02": {
         "name": "同学B",
@@ -116,6 +120,7 @@ DEMO_USERS: dict = {
         "student_id": "s02",
         "password_hash": "",
         "consent_given": False,
+        "school_id": 1,
     },
     "s03": {
         "name": "同学C",
@@ -123,6 +128,7 @@ DEMO_USERS: dict = {
         "student_id": "s03",
         "password_hash": "",
         "consent_given": False,
+        "school_id": 1,
     },
     "s04": {
         "name": "同学D",
@@ -130,6 +136,7 @@ DEMO_USERS: dict = {
         "student_id": "s04",
         "password_hash": "",
         "consent_given": False,
+        "school_id": 1,
     },
     "s05": {
         "name": "同学E",
@@ -137,6 +144,7 @@ DEMO_USERS: dict = {
         "student_id": "s05",
         "password_hash": "",
         "consent_given": False,
+        "school_id": 1,
     },
 }
 
@@ -260,17 +268,34 @@ _AUDIT_STREAM_MAXLEN = 10000  # 保留最近 1 万条，约 2-3 周审计量
 def audit_log(event: str, **fields) -> None:
     """Write one structured audit record. Never raises (audit must not break UX).
 
+    V2.0 Sprint 5: 审计日志制度化 — 每条记录包含 school_id + user_id + action + resource。
     V1.0: 优先写 Redis Stream（XADD audit:events），不可达时降级写文件。
     两条路径都走 JSON-lines 格式，消费侧可统一解析。
+
+    PRD 5.8 要求审计日志保留 ≥180 天。Redis Stream maxlen=10000 约覆盖 2-3 周
+    的实时事件流；长期归档走文件路径（logs/audit.log），生产环境配合 logrotate
+    + OSS 归档实现 180 天保留。
     """
     try:
+        # V2.0 Sprint 5: 从请求上下文获取 school_id（如果 @data_scope 已注入）
+        ctx_school_id = None
+        try:
+            ctx_school_id = getattr(g, "school_id", None)
+        except RuntimeError:
+            pass  # Outside request context
+
         record = {
             "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime()),
             "event": event,
+            # V2.0 Sprint 5: 审计日志必须含 school_id + user_id + action + resource
+            "school_id": fields.pop("school_id", ctx_school_id or 1),
+            "user_id": session.get("user_id") if session else None,
+            "action": event,  # action = event name（审计语义映射）
+            "resource": fields.pop("resource", request.path if request else None),
             "ip": request.remote_addr if request else None,
             "path": request.path if request else None,
             "method": request.method if request else None,
-            "user": session.get("user_id") if session else None,
+            "user": session.get("user_id") if session else None,  # legacy compat
             "role": session.get("user_role") if session else None,
             **fields,
         }
@@ -416,6 +441,7 @@ def login_user(username: str, password: str) -> Optional[dict]:
             session["user_id"] = username
             session["user_role"] = user["role"]
             session["user_name"] = user["name"]
+            session["school_id"] = user.get("school_id", 1)  # V2.0 Sprint 5
             session["_csrf"] = secrets.token_urlsafe(32)  # fresh token per login
             update_last_login(username)  # PG only, no-op in fallback
             return {"user_id": username, **user}
@@ -434,6 +460,7 @@ def login_user(username: str, password: str) -> Optional[dict]:
     session["user_id"] = username
     session["user_role"] = user["role"]
     session["user_name"] = user["name"]
+    session["school_id"] = user.get("school_id", 1)  # V2.0 Sprint 5
     session["_csrf"] = secrets.token_urlsafe(32)  # fresh token per login
     return {"user_id": username, **user}
 
@@ -466,14 +493,78 @@ def login_required(fn: Callable) -> Callable:
     return wrapper
 
 
+# ---------------------------------------------------------------------------
+# V2.0 Sprint 5: RBAC 角色别名映射 + 权限继承 + 数据范围装饰器
+# ---------------------------------------------------------------------------
+
+# 角色别名：旧角色名 → 新角色名（向后兼容）
+ROLE_ALIASES: dict[str, str] = {
+    "admin": "school_admin",
+    "head": "head_teacher",
+}
+
+# 权限继承链：高级角色自动拥有低级角色的所有权限
+# super_admin > school_admin > head_teacher > teacher > student
+# parent 是独立角色（仅限查看子女数据，不继承 teacher）
+ROLE_INHERITANCE: dict[str, set[str]] = {
+    "super_admin": {"super_admin", "school_admin", "head_teacher", "teacher", "student"},
+    "school_admin": {"school_admin", "head_teacher", "teacher", "student"},
+    "head_teacher": {"head_teacher", "teacher", "student"},
+    "teacher": {"teacher", "student"},
+    "student": {"student"},
+    "parent": {"parent", "student"},  # parent 可读子女数据（student 只读权限子集）
+}
+
+
+def _resolve_role(role: str) -> str:
+    """Resolve a role name through the alias map.
+
+    Returns the canonical V2.0 role name. Unknown roles pass through
+    unchanged (so legacy roles like 'teacher' / 'student' still work).
+    """
+    return ROLE_ALIASES.get(role, role)
+
+
+def _effective_roles(role: str) -> set[str]:
+    """Return the set of all roles that ``role`` inherits from.
+
+    For example, ``school_admin`` inherits ``head_teacher``, ``teacher``,
+    and ``student`` — so a school_admin can access any endpoint that
+    allows any of those roles.
+    """
+    canonical = _resolve_role(role)
+    return ROLE_INHERITANCE.get(canonical, {canonical})
+
+
 def roles_required(*allowed: str) -> Callable:
     """Reject callers whose role isn't in the allowed list.
 
-    Demo mode: when no user is in the session, the call passes through
-    so anonymous readers can browse the demo. Logged-in users with the
-    wrong role are still rejected with 403.
+    V2.0 Sprint 5 changes:
+    - **Role aliases**: ``admin`` → ``school_admin``, ``head`` → ``head_teacher``
+      (backward compat — existing @roles_required("teacher","head","admin")
+      calls work unchanged).
+    - **Role inheritance**: ``super_admin`` inherits all roles; ``school_admin``
+      inherits head_teacher/teacher/student; etc. This means adding
+      ``super_admin`` to the allowed list is NOT required — if the caller's
+      role inherits any allowed role, access is granted.
+    - **Demo mode**: unchanged — anonymous pass-through when DEMO_AUTH_OPEN=1.
+
+    Usage (unchanged from V1.5):
+        @roles_required("teacher", "head", "admin")
+        def my_view(): ...
+
+    In V2.0 this automatically allows super_admin, school_admin, and
+    head_teacher (via inheritance), without explicitly listing them.
     """
-    allowed_set = set(allowed)
+    # Expand allowed set: each allowed role is also satisfied by any role
+    # that inherits it. E.g. if "teacher" is allowed, then head_teacher,
+    # school_admin, and super_admin are also allowed.
+    allowed_set = set()
+    for r in allowed:
+        canonical = _resolve_role(r)
+        allowed_set.add(canonical)
+        # Also add the raw alias (so legacy role strings in sessions match)
+        allowed_set.add(r)
 
     def decorator(fn: Callable) -> Callable:
         @functools.wraps(fn)
@@ -485,9 +576,73 @@ def roles_required(*allowed: str) -> Callable:
                 if request.path.startswith("/api/"):
                     return jsonify({"ok": False, "error": "auth_required"}), 401
                 return redirect(url_for("login", next=request.path))
-            if user["role"] not in allowed_set:
-                audit_log("rbac_denied", required=sorted(allowed_set), actual=user["role"])
+            user_role = user["role"]
+            # Check if user's effective roles intersect with allowed roles
+            user_effective = _effective_roles(user_role)
+            # Also check raw role (for legacy roles not in the inheritance map)
+            if user_role not in allowed_set and not user_effective & allowed_set:
+                audit_log("rbac_denied", required=sorted(allowed_set), actual=user_role)
                 abort(403)
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def data_scope() -> Callable:
+    """Inject data-scope filtering into the request context (V2.0 Sprint 5).
+
+    This decorator runs AFTER @roles_required and sets ``g.school_id``,
+    ``g.class_ids``, and ``g.student_ids`` on the Flask request context.
+    Downstream queries use these to filter data by the caller's scope.
+
+    Scope rules:
+    - super_admin: all schools (g.school_id = None means no filter)
+    - school_admin: own school only
+    - head_teacher: own school, subject-group classes
+    - teacher: own school, own classes
+    - student: own school, own data only
+    - parent: own school, children's data only
+
+    Demo mode: g.school_id = 1 (default school), no class/student filter.
+    """
+    def decorator(fn: Callable) -> Callable:
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            user = get_current_user()
+            if not user:
+                # Demo mode: default school, no filter
+                g.school_id = 1
+                g.class_ids = None  # None = no filter
+                g.student_ids = None
+                return fn(*args, **kwargs)
+
+            role = user["role"]
+            canonical = _resolve_role(role)
+
+            # Default: user's own school
+            g.school_id = user.get("school_id", 1)
+
+            if canonical == "super_admin":
+                g.school_id = None  # No school filter
+                g.class_ids = None
+                g.student_ids = None
+            elif canonical in ("school_admin", "head_teacher"):
+                g.class_ids = None  # School-wide access
+                g.student_ids = None
+            elif canonical == "teacher":
+                # TODO: query teacher's classes from DB
+                g.class_ids = None  # Will be refined when DB is connected
+                g.student_ids = None
+            elif canonical == "student":
+                g.student_ids = [user.get("student_id")] if user.get("student_id") else None
+            elif canonical == "parent":
+                g.student_ids = user.get("parent_of", [])
+            else:
+                g.class_ids = None
+                g.student_ids = None
+
             return fn(*args, **kwargs)
 
         return wrapper

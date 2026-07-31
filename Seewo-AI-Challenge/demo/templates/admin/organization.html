@@ -1,0 +1,197 @@
+{# Sprint 5 · 5.3 P0 · /admin/organization 组织树管理页 #}
+{% extends "base.html" %}
+{% block title %}组织树管理 · 希沃智教π{% endblock %}
+
+{% block nav %}
+  <a href="/teacher" class="px-3 py-2 rounded-lg text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition">教师工作台</a>
+  <a href="/admin/organization" class="px-3 py-2 rounded-lg bg-primary-50 text-primary-600 font-semibold">组织树</a>
+  {% if current_user and current_user.role in ('super_admin','school_admin') %}
+  <a href="/admin/organization" class="px-3 py-2 rounded-lg text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition">管理</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6" data-reveal>
+  <!-- 页头 -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">组织树管理</h1>
+      <p class="text-sm text-gray-500 mt-1">学校 → 年级 → 班级 → 学生，多租户隔离与权限继承的可视化管理</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btn-import" type="button"
+        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 hover:border-primary-300 transition shadow-sm">
+        <i data-lucide="upload" class="w-4 h-4"></i>批量导入学生
+      </button>
+      <button id="btn-add-school" type="button"
+        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition shadow-md shadow-primary-400/30">
+        <i data-lucide="plus" class="w-4 h-4"></i>新建学校
+      </button>
+    </div>
+  </div>
+
+  <!-- 操作提示条 -->
+  <div id="org-notice" class="hidden rounded-xl px-4 py-3 text-sm" role="status"></div>
+
+  <!-- 主体：左树 + 右面板 -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- 左：组织树 -->
+    <section class="lg:col-span-5 bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+        <h2 class="text-sm font-bold text-gray-800 flex items-center gap-2">
+          <i data-lucide="git-fork" class="w-4 h-4 text-primary-500"></i>组织结构
+        </h2>
+        <div class="flex items-center gap-1">
+          <input id="org-search" type="search" placeholder="搜索节点…"
+            class="w-32 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none">
+          <button id="btn-expand-all" title="全部展开" class="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600"><i data-lucide="chevrons-down-up" class="w-4 h-4"></i></button>
+          <button id="btn-collapse-all" title="全部收起" class="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600"><i data-lucide="chevrons-up-down" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+      <div id="org-tree" class="p-3 max-h-[60vh] overflow-y-auto text-sm">
+        <div class="flex items-center gap-2 py-10 justify-center text-gray-400 text-xs">
+          <span class="animate-pulse">加载组织树…</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右：详情/编辑面板 -->
+    <section class="lg:col-span-7 bg-white rounded-2xl border border-gray-200/80 shadow-sm">
+      <div class="px-5 py-3.5 border-b border-gray-100">
+        <h2 class="text-sm font-bold text-gray-800 flex items-center gap-2">
+          <i data-lucide="settings-2" class="w-4 h-4 text-primary-500"></i>节点详情
+        </h2>
+      </div>
+      <div id="node-detail" class="p-5">
+        <div class="text-center py-12 text-gray-400 text-sm">
+          <i data-lucide="mouse-pointer-click" class="w-8 h-8 mx-auto mb-2 text-gray-300"></i>
+          <p>点击左侧节点查看详情，或点击「+」添加子节点</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+{# ── 节点编辑/新增 弹窗 #}
+<div id="node-modal" class="hidden fixed inset-0 z-[60]">
+  <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" data-modal-close></div>
+  <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+      <h3 id="modal-title" class="text-base font-bold text-gray-900">新建</h3>
+      <button class="p-1 rounded-lg text-gray-400 hover:bg-gray-100" data-modal-close><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <form id="node-form" class="p-5 space-y-3.5 max-h-[70vh] overflow-y-auto">
+      {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+      <div id="modal-fields"></div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" class="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100" data-modal-close>取消</button>
+        <button type="submit" class="px-4 py-2 rounded-xl bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition shadow-sm">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── 批量导入 弹窗（3 步） #}
+<div id="import-modal" class="hidden fixed inset-0 z-[60]">
+  <div class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" data-modal-close></div>
+  <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-white rounded-2xl shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+      <h3 class="text-base font-bold text-gray-900 flex items-center gap-2"><i data-lucide="upload" class="w-5 h-5 text-primary-500"></i>批量导入学生</h3>
+      <button class="p-1 rounded-lg text-gray-400 hover:bg-gray-100" data-modal-close><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+
+    {# 步骤指示器 #}
+    <div class="flex items-center px-5 pt-4">
+      <ol class="flex items-center w-full text-xs">
+        <li class="flex items-center gap-2 flex-1"><span class="step-dot" data-step="1">1</span><span class="font-medium">上传文件</span><span class="flex-1 h-px bg-gray-200 mx-1"></span></li>
+        <li class="flex items-center gap-2 flex-1"><span class="step-dot" data-step="2">2</span><span class="font-medium">预览校验</span><span class="flex-1 h-px bg-gray-200 mx-1"></span></li>
+        <li class="flex items-center"><span class="step-dot" data-step="3">3</span><span class="font-medium">结果报告</span></li>
+      </ol>
+    </div>
+
+    <div class="p-5 max-h-[65vh] overflow-y-auto">
+      {# Step 1 上传 #}
+      <div id="import-step-1" class="import-step">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-sm text-gray-500">支持 .xlsx / .csv，单次最多 500 条</p>
+          <a href="/api/admin/import-students/template" class="text-xs text-primary-600 hover:underline inline-flex items-center gap-1"><i data-lucide="download" class="w-3.5 h-3.5"></i>下载模板</a>
+        </div>
+        <label id="drop-zone" for="import-file"
+          class="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl py-10 cursor-pointer hover:border-primary-300 hover:bg-primary-50/40 transition">
+          <i data-lucide="cloud-upload" class="w-10 h-10 text-gray-300 mb-2"></i>
+          <span class="text-sm font-medium text-gray-600">拖拽文件到此处，或<span class="text-primary-600">点击选择</span></span>
+          <span class="text-xs text-gray-400 mt-1">.xlsx / .csv，&lt; 5MB</span>
+          <input id="import-file" type="file" accept=".xlsx,.csv" class="hidden">
+        </label>
+        <div id="file-info" class="hidden mt-3 flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-accent-500"></i><span id="file-name"></span>
+        </div>
+        <div class="mt-3">
+          <label class="text-xs text-gray-500">导入到班级</label>
+          <select id="import-class" class="mt-1 w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none"></select>
+        </div>
+        <div class="flex justify-end mt-4">
+          <button id="btn-upload" type="button" disabled
+            class="px-4 py-2 rounded-xl bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">上传并校验</button>
+        </div>
+      </div>
+
+      {# Step 2 预览校验 #}
+      <div id="import-step-2" class="import-step hidden">
+        <div class="flex items-center justify-between mb-3 text-sm">
+          <span>共 <b id="prev-total">0</b> 行，<span class="text-accent-700 font-medium">有效 <b id="prev-valid">0</b></span>，<span class="text-danger-700 font-medium">错误 <b id="prev-invalid">0</b></span></span>
+          <label class="inline-flex items-center gap-1.5 text-xs text-gray-500"><input id="show-errors-only" type="checkbox" class="rounded">仅看错误行</label>
+        </div>
+        <div class="overflow-auto rounded-xl border border-gray-200 max-h-[40vh]">
+          <table class="w-full text-xs">
+            <thead class="bg-gray-50 text-gray-500 sticky top-0">
+              <tr><th class="px-3 py-2 text-left">行</th><th class="px-3 py-2 text-left">姓名</th><th class="px-3 py-2 text-left">学号</th><th class="px-3 py-2 text-left">班级</th><th class="px-3 py-2 text-left">状态</th><th class="px-3 py-2 text-left">可编辑修正</th></tr>
+            </thead>
+            <tbody id="prev-body" class="divide-y divide-gray-100"></tbody>
+          </table>
+        </div>
+        <div class="flex justify-between mt-4">
+          <button id="btn-back-1" type="button" class="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100">上一步</button>
+          <div class="flex gap-2">
+            <button id="btn-download-errors" type="button" class="px-4 py-2 rounded-xl text-sm font-medium text-danger-700 border border-danger-200 hover:bg-danger-50 hidden"><i data-lucide="download" class="w-4 h-4 inline mr-1"></i>下载错误报告</button>
+            <button id="btn-confirm-import" type="button" class="px-4 py-2 rounded-xl bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition shadow-sm">确认导入 (<span id="confirm-count">0</span>)</button>
+          </div>
+        </div>
+      </div>
+
+      {# Step 3 结果报告 #}
+      <div id="import-step-3" class="import-step hidden">
+        <div id="result-card" class="text-center py-6">
+          <div id="result-icon" class="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-3"></div>
+          <h4 id="result-title" class="text-lg font-bold text-gray-900"></h4>
+          <p id="result-desc" class="text-sm text-gray-500 mt-1"></p>
+        </div>
+        <div id="result-detail" class="text-sm bg-gray-50 rounded-xl px-4 py-3"></div>
+        <div class="flex justify-end mt-4">
+          <button id="btn-import-done" type="button" class="px-4 py-2 rounded-xl bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition shadow-sm">完成</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+  .step-dot{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:9999px;background:#e5e7eb;color:#6b7280;font-weight:700}
+  .step-dot.active{background:#4a6cf7;color:#fff}
+  .step-dot.done{background:#10b981;color:#fff}
+  /* tree */
+  .org-node{display:flex;align-items:center;gap:.4rem;padding:.4rem .5rem;border-radius:.5rem;cursor:pointer;transition:background .12s}
+  .org-node:hover{background:#eef1fe}
+  .org-node.selected{background:#dde3fd;color:#1e3ab8;font-weight:600}
+  .org-children{margin-left:1.1rem;border-left:1.5px dashed #d1d5db;padding-left:.5rem}
+  .twisty{transition:transform .15s}
+  .twisty.open{transform:rotate(90deg)}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin/org-api.js"></script>
+<script src="/static/js/admin/organization.js"></script>
+{% endblock %}

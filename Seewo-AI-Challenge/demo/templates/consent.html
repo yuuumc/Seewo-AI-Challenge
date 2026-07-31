@@ -1,61 +1,152 @@
+{# Sprint 5 · 5.10 P1 · /consent 正式化同意页
+   升级 V1.5 demo 模式（302 自动通过）为正式版：监护人签字 + 可审计记录 + 未同意降级提示。
+   demo 兼容：DEMO_AUTH_OPEN=1 时后端注入 consent_status='demo'，本页显示 demo 横幅并自动放行。
+   后端需注入变量：consent_status ('granted'|'pending'|'demo'), student_name, guardian_name, consent_record(可选), csrf_token
+#}
 {% extends "base.html" %}
+{% block title %}监护人同意 · 希沃智教π{% endblock %}
 
-{% block title %}家长知情同意 — 希沃智教π{% endblock %}
+{% block nav %}
+  <a href="/student/{{ student_id or '' }}" class="px-3 py-2 rounded-lg text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition">返回</a>
+{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
-  <div class="max-w-2xl w-full bg-white rounded-2xl shadow-lg p-8">
-    <div class="text-center mb-6">
-      <div class="inline-flex items-center justify-center w-16 h-16 bg-primary-50 rounded-full mb-4">
-        <svg class="w-8 h-8 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-        </svg>
-      </div>
-      <h1 class="text-2xl font-bold text-gray-900">未成年人学情数据使用告知</h1>
-      <p class="text-gray-500 mt-2">请家长/监护人仔细阅读并确认</p>
+<div class="max-w-2xl mx-auto" data-reveal>
+
+  {# demo 模式横幅 #}
+  {% if consent_status == 'demo' %}
+  <div class="rounded-xl bg-warm-50 border border-warm-200 px-4 py-3 mb-5 flex items-start gap-3">
+    <i data-lucide="info" class="w-5 h-5 text-warm-700 mt-0.5 flex-shrink-0"></i>
+    <div class="text-sm text-warm-800">
+      <p class="font-semibold">演示模式（DEMO_AUTH_OPEN=1）</p>
+      <p class="mt-0.5">监护人同意已自动放行，无需签字。生产环境关闭 demo 模式后将显示正式同意流程。</p>
     </div>
-
-    <div class="bg-gray-50 rounded-xl p-6 mb-6 space-y-4 text-sm text-gray-700 leading-relaxed">
-      <div>
-        <h3 class="font-semibold text-gray-900 mb-1">数据收集范围</h3>
-        <p>本系统收集以下学情数据：学生 ID、昵称、班级、答题数据（含手写内容 OCR 识别结果）、订正记录、学情分析结果。不收集手机号、身份证号、位置信息等非必要个人信息。</p>
-      </div>
-      <div>
-        <h3 class="font-semibold text-gray-900 mb-1">数据使用目的</h3>
-        <p>学情数据仅用于 AI 智能批改、个性化反馈、订正闭环追踪和教学分析，不会用于商业目的或共享给第三方。</p>
-      </div>
-      <div>
-        <h3 class="font-semibold text-gray-900 mb-1">数据存储与安全</h3>
-        <p>数据存储于境内服务器，采用加密传输和访问控制。AI 批改过程中，学生身份信息会进行匿名化处理，不会以原始形式发送给外部 AI 服务。</p>
-      </div>
-      <div>
-        <h3 class="font-semibold text-gray-900 mb-1">您的权利</h3>
-        <p>根据《个人信息保护法》和《未成年人网络保护条例》，您有权随时导出或删除学生的全部学情数据。如需操作，请联系教师或管理员。</p>
-      </div>
-      <div>
-        <h3 class="font-semibold text-gray-900 mb-1">数据保留期限</h3>
-        <p>学情数据在学生毕业后保留 2 年，届时将自动匿名化处理。您也可随时申请提前删除。</p>
-      </div>
-    </div>
-
-    <form method="POST" action="{{ url_for('consent_submit') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label class="flex items-start gap-3 p-4 bg-primary-50 rounded-xl cursor-pointer hover:bg-primary-100 transition mb-6">
-        <input type="checkbox" name="parent_consent" class="mt-1 w-5 h-5 text-primary-500 rounded border-gray-300 focus:ring-primary-400">
-        <span class="text-sm text-gray-700">
-          我已阅读并理解上述告知内容，作为该学生的家长/监护人，我同意系统收集和使用上述学情数据用于教学目的。
-        </span>
-      </label>
-      <button type="submit"
-        class="w-full py-3 bg-primary-500 text-white font-medium rounded-xl hover:bg-primary-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        onclick="if(!this.form.parent_consent.checked){alert('请先勾选同意');return false;}">
-        确认同意
-      </button>
-    </form>
-
-    <p class="text-xs text-gray-400 text-center mt-4">
-      法律依据：《个人信息保护法》《未成年人保护法》《数据安全法》《未成年人网络保护条例》
-    </p>
   </div>
+  {% endif %}
+
+  {# 已同意状态 #}
+  {% if consent_status == 'granted' %}
+  <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-8 text-center">
+    <div class="w-16 h-16 rounded-full bg-accent-50 flex items-center justify-center mx-auto mb-4">
+      <i data-lucide="shield-check" class="w-8 h-8 text-accent-500"></i>
+    </div>
+    <h1 class="text-xl font-extrabold text-gray-900">已获得监护人同意</h1>
+    <p class="text-sm text-gray-500 mt-2">{{ student_name or '学生' }}的监护人已签署同意，可正常使用 AI 智能批改服务。</p>
+    {% if consent_record %}
+    <dl class="mt-6 grid grid-cols-2 gap-x-6 gap-y-2 text-left bg-gray-50 rounded-xl px-5 py-4 text-sm">
+      <dt class="text-gray-400">同意时间</dt><dd class="text-gray-800 font-medium">{{ consent_record.granted_at }}</dd>
+      <dt class="text-gray-400">监护人</dt><dd class="text-gray-800 font-medium">{{ consent_record.guardian_name_masked }}</dd>
+      <dt class="text-gray-400">证件号</dt><dd class="text-gray-800 font-medium">{{ consent_record.guardian_id_no_masked }}</dd>
+      <dt class="text-gray-400">记录编号</dt><dd class="text-gray-800 font-medium">{{ consent_record.record_id }}</dd>
+      <dt class="text-gray-400">同意书版本</dt><dd class="text-gray-800 font-medium">v{{ consent_record.version or '2.0' }}</dd>
+    </dl>
+    <p class="text-xs text-gray-400 mt-4">该记录已写入审计日志，保留 ≥180 天，符合等保三级与未成年人保护要求。</p>
+    {% endif %}
+    <a href="/student/{{ student_id or '' }}" class="inline-flex items-center gap-1.5 mt-6 px-5 py-2.5 rounded-xl bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition shadow-sm">
+      <i data-lucide="arrow-right" class="w-4 h-4"></i>进入学生端
+    </a>
+  </div>
+
+  {# 待同意：正式签字流程 #}
+  {% elif consent_status == 'pending' or not consent_status %}
+  <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-100 bg-primary-50/50">
+      <h1 class="text-lg font-extrabold text-gray-900 flex items-center gap-2">
+        <i data-lucide="file-signature" class="w-5 h-5 text-primary-500"></i>监护人同意书
+      </h1>
+      <p class="text-xs text-gray-500 mt-1">依据《未成年人保护法》及《个人信息保护法》，未满 14 周岁学生使用 AI 服务须经监护人同意。</p>
+    </div>
+
+    <div class="px-6 py-5 space-y-4 text-sm leading-relaxed text-gray-700 max-h-[40vh] overflow-y-auto">
+      <p>尊敬的监护人：</p>
+      <p>{{ student_name or '您的孩子' }}正在使用「希沃智教π」AI 智能作业批改服务。该服务会采集并处理学生的作业作答、成绩与学情画像数据，用于步骤级批改、个性化辅导与订正闭环追踪。</p>
+      <p><b>数据处理说明：</b></p>
+      <ul class="list-disc pl-5 space-y-1 text-gray-600">
+        <li>采集范围：作业作答图像/文本、批改结果、学情分析数据</li>
+        <li>处理目的：AI 批改与辅导，不会用于商业广告或跨平台共享</li>
+        <li>存储与加密：数据加密存储于国内服务器，TLS 传输，PG 行级安全隔离</li>
+        <li>AI 模型：使用已完成算法备案的 DeepSeek 国内大模型，数据不出境</li>
+        <li>您可随时撤回同意并要求删除数据（GDPR 被遗忘权）</li>
+      </ul>
+      <p>勾选下方同意并签字确认，即表示您已阅读并同意上述数据处理。</p>
+    </div>
+
+    <form id="consent-form" class="px-6 py-5 border-t border-gray-100 space-y-4">
+      {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+      <input type="hidden" name="student_id" value="{{ student_id or '' }}">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1"><span class="text-danger-500">*</span> 监护人姓名</label>
+          <input name="guardian_name" type="text" required class="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1"><span class="text-danger-500">*</span> 监护人证件号</label>
+          <input name="guardian_id_no" type="text" required class="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-100 outline-none">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">手写签字（在下方区域签名）</label>
+        <canvas id="sig-canvas" width="560" height="140" class="w-full rounded-lg border border-gray-200 bg-gray-50 touch-none cursor-crosshair"></canvas>
+        <button type="button" id="sig-clear" class="text-xs text-gray-400 hover:text-gray-600 mt-1">清除重签</button>
+        <input type="hidden" name="signature_data_url" id="sig-input">
+      </div>
+      <label class="flex items-start gap-2.5 text-sm text-gray-700">
+        <input name="agree" type="checkbox" required class="mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-200">
+        <span>我已阅读并同意《监护人同意书》全部条款，同意 {{ student_name or '我的孩子' }} 使用 AI 智能批改服务并按上述说明处理数据。</span>
+      </label>
+      <div class="flex justify-end gap-2 pt-1">
+        <a href="/" class="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100">暂不同意</a>
+        <button type="submit" class="px-5 py-2 rounded-xl bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition shadow-sm">签字确认</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="mt-4 rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-xs text-gray-500 flex items-start gap-2">
+    <i data-lucide="lock" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+    <span>未同意时，学生端 AI 批改功能将降级为只读模式（可查看作业、不可触发 AI 批改），其他功能不受影响。同意记录可审计、可撤回。</span>
+  </div>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  'use strict';
+  // 签字画板
+  var canvas = document.getElementById('sig-canvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var drawing = false, last = null;
+  function pos(e) {
+    var r = canvas.getBoundingClientRect();
+    var p = e.touches ? e.touches[0] : e;
+    return { x: (p.clientX - r.left) * (canvas.width / r.width), y: (p.clientY - r.top) * (canvas.height / r.height) };
+  }
+  function start(e) { e.preventDefault(); drawing = true; last = pos(e); }
+  function move(e) { if (!drawing) return; e.preventDefault(); var p = pos(e); ctx.strokeStyle = '#1e3ab8'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p; }
+  function end() { drawing = false; document.getElementById('sig-input').value = canvas.toDataURL('image/png'); }
+  canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start); canvas.addEventListener('touchmove', move); canvas.addEventListener('touchend', end);
+  var clr = document.getElementById('sig-clear');
+  if (clr) clr.addEventListener('click', function () { ctx.clearRect(0, 0, canvas.width, canvas.height); document.getElementById('sig-input').value = ''; });
+
+  // 表单提交
+  var form = document.getElementById('consent-form');
+  if (form) form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var sig = document.getElementById('sig-input').value;
+    if (!sig) { alert('请先手写签名'); return; }
+    var fd = new FormData(form);
+    var body = {}; fd.forEach(function (v, k) { body[k] = v; });
+    var tok = (document.querySelector('input[name="csrf_token"]') || {}).value;
+    try {
+      var res = await fetch('/consent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': tok || '' }, credentials: 'same-origin', body: JSON.stringify(body) });
+      var j = await res.json().catch(function () { return {}; });
+      if (res.ok && j.ok !== false) { window.location.reload(); }
+      else { alert(j.error || '提交失败，请重试'); }
+    } catch (err) { alert('网络错误：' + err.message); }
+  });
+})();
+</script>
 {% endblock %}

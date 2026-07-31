@@ -40,7 +40,11 @@ class TestORMModels:
         assert "corrections" in table_names
         assert "analytics_snapshots" in table_names
         assert "agent_trace" in table_names
-        assert len(table_names) == 8
+        # V2.0 Sprint 5: 3 new organization tree tables
+        assert "schools" in table_names
+        assert "grades" in table_names
+        assert "subject_groups" in table_names
+        assert len(table_names) == 11
 
     def test_user_has_v1_fields(self):
         from infra.pg.orm import Base, User

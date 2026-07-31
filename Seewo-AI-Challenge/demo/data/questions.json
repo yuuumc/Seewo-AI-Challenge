@@ -1031,5 +1031,55 @@
         "answer": "2H₂+O₂→2H₂O"
       }
     ]
+  },
+  "hw_1785445559": {
+    "id": "hw_1785445559",
+    "title": "物理测试_学科类型",
+    "subject": "物理",
+    "grade": "高二",
+    "knowledge_points": [
+      "牛顿第二定律"
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "type": "long_answer",
+        "subject_type": "physics_short",
+        "stem": "一质量为 2kg 的物体在水平面上受 10N 拉力做匀加速运动，求加速度。",
+        "score": 10,
+        "knowledge": "牛顿第二定律",
+        "answer": "a=5 m/s²"
+      }
+    ]
+  },
+  "hw_1785445560": {
+    "id": "hw_1785445560",
+    "title": "混合学科测试",
+    "subject": "综合",
+    "grade": "高二",
+    "knowledge_points": [
+      "写作",
+      "化学反应"
+    ],
+    "questions": [
+      {
+        "id": "q1",
+        "type": "long_answer",
+        "subject_type": "chinese_essay",
+        "stem": "以《秋日》为题写一篇 800 字作文",
+        "score": 40,
+        "knowledge": "写作",
+        "answer": ""
+      },
+      {
+        "id": "q2",
+        "type": "long_answer",
+        "subject_type": "chemistry_short",
+        "stem": "写出氢气在氧气中燃烧的化学方程式",
+        "score": 10,
+        "knowledge": "化学反应",
+        "answer": "2H₂+O₂→2H₂O"
+      }
+    ]
   }
 }

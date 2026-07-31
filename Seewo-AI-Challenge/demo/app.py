@@ -78,7 +78,14 @@ from security import (
     DEMO_USERS,
     has_consent,
     require_consent,
+    data_scope,
 )
+
+# V2.0 Sprint 5: 组织树 CRUD API + 批量导入 + consent 管理
+from org_api import bp as org_api_bp
+from batch_import import bp as batch_import_bp
+from consent_manager import build_consent_context, get_consent_status, create_consent_record, get_latest_consent_record
+from data_masking import mask_student_list, mask_name, mask_phone, mask_student_no
 
 app = Flask(__name__)
 app.secret_key = secret_key()
@@ -90,6 +97,17 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 register_template_helpers(app)
 # Wire error pages
 register_error_handlers(app)
+
+# V2.0 Sprint 5: Register blueprints
+app.register_blueprint(org_api_bp)
+app.register_blueprint(batch_import_bp)
+
+# V2.0 Sprint 5: Tenant middleware (injects g.school_id for every request)
+try:
+    from tenant_middleware import TenantMiddleware
+    TenantMiddleware(app)
+except ImportError:
+    pass  # tenant_middleware not available (older codebase)
 
 
 # ── Auth routes ───────────────────────────────────────────────────────
@@ -1382,52 +1400,167 @@ def _count_pending_corrections(student_id: str) -> int:
 def consent_page():
     """Parental consent page — shown on student's first login.
 
-    Minors must acknowledge the data usage notice and have a parent/guardian
-    check the consent box before they can submit homework.
+    V2.0 Sprint 5 (5.10): Upgraded to formalized consent with three states
+    (granted/pending/demo), guardian signature, and audit trail.
     """
     user = get_current_user()
     # Non-students don't need consent
     if user and user.get("role") != "student":
         return redirect(url_for("index"))
-    # Already consented
-    if has_consent():
-        return redirect(url_for("index"))
-    return render_template("consent.html", user=user)
+    # Already consented — still show the page (audit record view)
+    # V2.0 Sprint 5: inject formalized consent context
+    ctx = build_consent_context()
+    ctx["user"] = user
+    return render_template("consent.html", **ctx)
 
 
 @app.route("/consent", methods=["POST"])
 @login_required
 @csrf_protect
 def consent_submit():
-    """Handle parental consent form submission."""
+    """Handle parental consent form submission.
+
+    V2.0 Sprint 5 (5.10): Formalized consent with guardian info + signature.
+    """
     user = get_current_user()
     if not user:
         return redirect(url_for("login"))
     if user.get("role") != "student":
         return redirect(url_for("index"))
 
-    agreed = request.form.get("parent_consent") == "on"
+    # V2.0 Sprint 5: Support both JSON (formalized) and form (legacy) submissions
+    if request.is_json:
+        body = request.get_json()
+        guardian_name = body.get("guardian_name", "").strip()
+        guardian_id_no = body.get("guardian_id_no", "").strip()
+        signature_data_url = body.get("signature_data_url", "")
+        agreed = body.get("agree", False)
+        student_id = body.get("student_id", user.get("student_id", user.get("user_id", "")))
+    else:
+        # Legacy form submission (backward compat with V1.5 consent.html)
+        guardian_name = request.form.get("guardian_name", "").strip()
+        guardian_id_no = request.form.get("guardian_id_no", "").strip()
+        signature_data_url = request.form.get("signature_data_url", "")
+        agreed = request.form.get("parent_consent") == "on" or request.form.get("agree") == "on"
+        student_id = user.get("student_id", user.get("user_id", ""))
+
     if not agreed:
         flash("需要家长/监护人勾选同意才能继续使用。", "error")
-        return render_template("consent.html", user=user), 400
+        ctx = build_consent_context()
+        ctx["user"] = user
+        return render_template("consent.html", **ctx), 400
 
-    # Update consent in PG or DEMO_USERS
-    from db_store import set_consent as _db_set_consent
-    _db_set_consent(user.get("user_id", ""))
+    if not guardian_name:
+        flash("需要填写监护人姓名。", "error")
+        ctx = build_consent_context()
+        ctx["user"] = user
+        return render_template("consent.html", **ctx), 400
 
-    # Also update in-memory DEMO_USERS (JSON fallback)
-    if user.get("user_id") in DEMO_USERS:
-        DEMO_USERS[user["user_id"]]["consent_given"] = True
+    # V2.0 Sprint 5: Create formalized consent record
+    record = create_consent_record(
+        student_id=student_id,
+        guardian_name=guardian_name,
+        guardian_id_no=guardian_id_no,
+        signature_data_url=signature_data_url,
+        agreed=True,
+    )
 
-    # Update session
     session["consent_given"] = True
 
-    audit_log("consent_given", user_id=user.get("user_id"))
+    if request.is_json:
+        return jsonify({"ok": True, "data": {"status": "granted", "record_id": record["record_id"]}})
+
     flash("感谢确认！您现在可以提交作业了。", "success")
     return redirect(url_for("index"))
 
 
-# ── Sprint 4 P0-2: 数据删除/导出 API ─────────────────────────────────
+# ── V2.0 Sprint 5: 组织树管理页 + 学生列表脱敏 API + consent 审计 ─────
+
+@app.route("/admin/organization")
+@login_required
+@roles_required("admin", "head", "teacher")
+def admin_organization_page():
+    """V2.0 Sprint 5 (5.3): Organization tree management page."""
+    return render_template("admin/organization.html")
+
+
+@app.route("/api/admin/students")
+@login_required
+@roles_required("admin", "head", "teacher")
+@data_scope()
+def api_admin_students():
+    """V2.0 Sprint 5 (5.9): Student list with role-based masking.
+
+    Query params: class_id, page (default 1), size (default 20)
+    """
+    import math
+    class_id = request.args.get("class_id", type=int)
+    page = request.args.get("page", 1, type=int)
+    size = request.args.get("size", 20, type=int)
+    page = max(1, page)
+    size = max(1, min(100, size))
+
+    students = load_json("students.json").get("students", [])
+
+    # Filter by class_id if provided
+    if class_id:
+        students = [s for s in students if s.get("class_id") == class_id]
+
+    total = len(students)
+    start = (page - 1) * size
+    page_items = students[start:start + size]
+
+    # V2.0 Sprint 5 (5.9): Role-based masking
+    user = get_current_user()
+    role = user.get("role", "") if user else ""
+    # teacher viewing own class → name not masked; others → masked
+    is_own_class = role == "teacher"  # simplified: assume teacher queries own class
+
+    masked = mask_student_list(page_items, role=role, is_own_class=is_own_class)
+
+    return jsonify({
+        "ok": True,
+        "data": {
+            "items": [
+                {
+                    "id": s.get("student_id", s.get("id", "")),
+                    "name": s.get("name", ""),
+                    "student_no": s.get("student_no", s.get("student_id", "")),
+                    "class_name": s.get("class_name", ""),
+                    "phone": s.get("phone", ""),
+                }
+                for s in masked
+            ],
+            "total": total,
+            "page": page,
+        }
+    })
+
+
+@app.route("/api/consent/record")
+@login_required
+def api_consent_record():
+    """V2.0 Sprint 5 (5.10): Get consent record for audit."""
+    student_id = request.args.get("student_id", "")
+    if not student_id:
+        user = get_current_user()
+        student_id = user.get("student_id", user.get("user_id", "")) if user else ""
+
+    record = get_latest_consent_record(student_id)
+    if not record:
+        return jsonify({"ok": False, "error": "no consent record found"}), 404
+
+    from data_masking import mask_guardian_name, mask_id_no
+    return jsonify({
+        "ok": True,
+        "data": {
+            "record_id": record.get("record_id"),
+            "granted_at": record.get("granted_at"),
+            "guardian_name_masked": mask_guardian_name(record.get("guardian_name")),
+            "guardian_id_no_masked": mask_id_no(record.get("guardian_id_no")),
+            "version": record.get("version"),
+        }
+    })
 
 @app.route("/api/student/<student_id>/data", methods=["DELETE"])
 @login_required
