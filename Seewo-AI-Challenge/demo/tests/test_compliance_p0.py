@@ -263,6 +263,9 @@ class TestP0_3_ParentalConsent(unittest.TestCase):
 
             resp = client.post("/consent", data={
                 "parent_consent": "on",
+                "guardian_name": "张三",
+                "id_no": "110101199001011234",
+                "signature": "data:image/png;base64,abc",
                 "csrf_token": token,
             })
             self.assertEqual(resp.status_code, 302)

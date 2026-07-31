@@ -1,0 +1,101 @@
+{
+  "schools": [
+    {
+      "id": 1,
+      "name": "测试学校",
+      "code": "default",
+      "district": "海淀区",
+      "school_type": "secondary",
+      "address": "",
+      "contact_phone": "",
+      "is_active": true,
+      "config": {}
+    }
+  ],
+  "grades": [
+    {
+      "id": 1,
+      "school_id": 1,
+      "name": "高二",
+      "grade_level": 11,
+      "academic_year": "2026-2027",
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "school_id": 1,
+      "name": "高三",
+      "grade_level": 12,
+      "academic_year": "2026-2027",
+      "is_active": true
+    },
+    {
+      "id": 4,
+      "school_id": 1,
+      "name": "高二",
+      "grade_level": 11,
+      "academic_year": "2026-2027",
+      "is_active": true
+    },
+    {
+      "id": 5,
+      "school_id": 1,
+      "name": "高三",
+      "grade_level": 12,
+      "academic_year": "2026-2027",
+      "is_active": true
+    }
+  ],
+  "classes": [
+    {
+      "id": 1,
+      "school_id": 1,
+      "grade_id": 1,
+      "name": "高二(1)班",
+      "teacher_id": null,
+      "class_code": "G2-01",
+      "is_active": true
+    },
+    {
+      "id": 3,
+      "school_id": 1,
+      "grade_id": 4,
+      "name": "高二(1)班",
+      "teacher_id": null,
+      "class_code": "G2-01",
+      "is_active": true
+    }
+  ],
+  "subject_groups": [
+    {
+      "id": 1,
+      "school_id": 1,
+      "name": "数学组",
+      "subject": "数学",
+      "leader_id": null,
+      "member_ids": [
+        1,
+        2
+      ],
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "school_id": 1,
+      "name": "数学组",
+      "subject": "数学",
+      "leader_id": null,
+      "member_ids": [
+        1,
+        2
+      ],
+      "is_active": true
+    }
+  ],
+  "_seq": {
+    "school": 1,
+    "grade": 6,
+    "class": 4,
+    "subject_group": 2
+  }
+}

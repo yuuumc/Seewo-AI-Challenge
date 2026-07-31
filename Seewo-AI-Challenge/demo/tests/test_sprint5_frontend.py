@@ -22,6 +22,8 @@ TEMPLATES_DIR = os.path.abspath(TEMPLATES_DIR)
 def env():
     e = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True)
     e.globals["csrf_token"] = lambda: "test-csrf-token"
+    e.globals["get_current_user"] = lambda: {"role": "school_admin", "name": "Test User"}
+    e.globals["get_flashed_messages"] = lambda with_categories=False, category_filter=[]: []
     return e
 
 
