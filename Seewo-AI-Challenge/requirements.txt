@@ -16,3 +16,6 @@ sqlalchemy>=2.0,<3.0
 alembic>=1.13,<2.0
 psycopg2-binary>=2.9,<3.0
 redis>=5.0,<6.0
+# V2.0 Sprint 7: MFA TOTP (7.1)
+pyotp>=2.9,<3.0
+qrcode>=7.4,<9.0

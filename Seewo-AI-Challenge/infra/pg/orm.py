@@ -103,6 +103,9 @@ class User(Base):
     )
     # V2.0 Sprint 5: 家长关联子女 student_id 列表
     parent_of: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # V2.0 Sprint 7 (7.1): MFA TOTP secret + enabled flag
+    mfa_secret: Mapped[Optional[str]] = mapped_column(String(64))
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # V2.0 Sprint 5: 加密的 PII 字段（pgcrypto / AES-GCM，应用层加解密）
     pii_encrypted: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(

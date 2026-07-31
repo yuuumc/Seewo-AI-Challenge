@@ -358,7 +358,7 @@ def class_update(cid):
 
 @bp.route("/api/admin/class/<int:cid>", methods=["DELETE"])
 @login_required
-@roles_required("admin", "head", "teacher")
+@roles_required("admin", "head")
 @data_scope()
 def class_delete(cid):
     data = _load_org()

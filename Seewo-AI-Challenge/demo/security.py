@@ -431,12 +431,28 @@ def login_user(username: str, password: str) -> Optional[dict]:
     
     V1.0: Authentication goes through db_store → PG users table (with DEMO_USERS fallback).
     Password verification uses bcrypt (constant-time, MIG-03).
+    
+    V2.0 Sprint 7 (7.1): After password validation, checks if MFA is enabled.
+    If MFA is required, the session is NOT fully set up — instead a pending MFA
+    state is stored, and the caller must redirect to /mfa-verify.
+    The caller checks ``is_mfa_pending()`` to decide whether to redirect.
     """
     # V1.0: Try DB-backed authentication first
     try:
         from db_store import authenticate as _db_auth, update_last_login
         user = _db_auth(username, password, _verify_password)
         if user:
+            # V2.0 Sprint 7 (7.1): Check MFA requirement before setting full session
+            try:
+                from mfa import mfa_check_after_login
+                mfa_required, redirect_url = mfa_check_after_login(username, user)
+                if mfa_required:
+                    # Session has pending MFA state — caller must redirect
+                    audit_log("login_mfa_required", user_id=username)
+                    return {"user_id": username, "_mfa_required": True, **user}
+            except ImportError:
+                pass  # MFA module not available — proceed without MFA
+
             session.clear()
             session["user_id"] = username
             session["user_role"] = user["role"]
@@ -456,6 +472,16 @@ def login_user(username: str, password: str) -> Optional[dict]:
     expected = user.get("password_hash", "")
     if not _verify_password(password, expected):
         return None
+    # V2.0 Sprint 7 (7.1): Check MFA requirement for DEMO_USERS too
+    try:
+        from mfa import mfa_check_after_login
+        mfa_required, redirect_url = mfa_check_after_login(username, user)
+        if mfa_required:
+            audit_log("login_mfa_required", user_id=username)
+            return {"user_id": username, "_mfa_required": True, **user}
+    except ImportError:
+        pass
+
     session.clear()
     session["user_id"] = username
     session["user_role"] = user["role"]
@@ -582,6 +608,60 @@ def roles_required(*allowed: str) -> Callable:
             # Also check raw role (for legacy roles not in the inheritance map)
             if user_role not in allowed_set and not user_effective & allowed_set:
                 audit_log("rbac_denied", required=sorted(allowed_set), actual=user_role)
+                abort(403)
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+# ---------------------------------------------------------------------------
+# V2.0 Sprint 7 (7.2): @min_role — minimum role level check
+# ---------------------------------------------------------------------------
+
+# Role hierarchy levels (higher = more privileged)
+ROLE_LEVELS: dict[str, int] = {
+    "student": 0,
+    "parent": 0,
+    "teacher": 1,
+    "head": 2,
+    "head_teacher": 2,
+    "admin": 3,
+    "school_admin": 3,
+    "super_admin": 4,
+}
+
+
+def min_role(minimum: str) -> Callable:
+    """Reject callers whose role level is below the minimum.
+
+    V2.0 Sprint 7 (7.2): This decorator complements ``@roles_required``
+    by enforcing a minimum role level rather than an exact role match.
+    For example, ``@min_role("teacher")`` blocks students from accessing
+    teacher-level APIs, while still allowing teacher/head/admin/super_admin.
+
+    Usage:
+        @login_required
+        @min_role("teacher")
+        def my_view(): ...
+    """
+    min_level = ROLE_LEVELS.get(_resolve_role(minimum), 0)
+
+    def decorator(fn: Callable) -> Callable:
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            user = get_current_user()
+            if not user:
+                if _demo_auth_open():
+                    return fn(*args, **kwargs)
+                if request.path.startswith("/api/"):
+                    return jsonify({"ok": False, "error": "auth_required"}), 401
+                return redirect(url_for("login", next=request.path))
+            user_role = user["role"]
+            user_level = ROLE_LEVELS.get(_resolve_role(user_role), 0)
+            if user_level < min_level:
+                audit_log("min_role_denied", required=minimum, actual=user_role)
                 abort(403)
             return fn(*args, **kwargs)
 

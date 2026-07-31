@@ -23,7 +23,7 @@ def env():
     # 先尝试真实文件系统；base.html 不存在时用 DictLoader 桩兜底
     loaders = [FileSystemLoader(TEMPLATES_DIR)]
     try:
-        Environment(loader=FileSystemLoader(TEMPLATES_DIR)).get_template("base.html")
+        Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True).get_template("base.html")
     except TemplateNotFound:
         loaders.append(DictLoader({"base.html": BASE_STUB}))
     e = Environment(loader=ChoiceLoader(loaders), autoescape=True)

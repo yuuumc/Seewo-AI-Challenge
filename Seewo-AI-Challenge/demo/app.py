@@ -75,6 +75,7 @@ from security import (
     logout_user,
     register_template_helpers,
     _demo_auth_open,
+    _resolve_role,
     register_error_handlers,
     DEMO_USERS,
     has_consent,
@@ -102,6 +103,10 @@ register_error_handlers(app)
 # V2.0 Sprint 5: Register blueprints
 app.register_blueprint(org_api_bp)
 app.register_blueprint(batch_import_bp)
+
+# V2.0 Sprint 7 (7.1): Register MFA routes
+from mfa import register_mfa_routes  # noqa: E402
+register_mfa_routes(app)
 
 # V2.0 Sprint 6: Observability middleware (supersedes Sprint 5 tenant-only middleware)
 from tenant_middleware import TenantMiddleware  # noqa: E402
@@ -131,6 +136,21 @@ def _sprint6_after_request(response):
         pass  # Metrics must not break UX
     return response
 
+
+
+# V2.0 Sprint 7 (7.4): WAF 中间件
+try:
+    from waf_middleware import init_waf
+    init_waf(app)
+except ImportError:
+    pass  # waf_middleware not available (older codebase)
+
+# V2.0 Sprint 7 (7.6): 安全响应头 Flask 层加固
+try:
+    from security_headers import init_security_headers
+    init_security_headers(app)
+except ImportError:
+    pass  # security_headers not available (older codebase)
 
 
 # ── Auth routes ───────────────────────────────────────────────────────
@@ -170,6 +190,10 @@ def login():
         password = request.form.get("password") or ""
         user = login_user(username, password)
         if user:
+            # V2.0 Sprint 7 (7.1): Check if MFA verification is required
+            if user.get("_mfa_required"):
+                audit_log("login_mfa_redirect", user_id=username)
+                return redirect(url_for("mfa_verify"))
             audit_log("login_success", user_id=username, role=user["role"])
             flash(f"欢迎回来，{user.get('name') or username}！", "success")
             nxt = request.args.get("next") or url_for("index")
@@ -1627,12 +1651,13 @@ def api_consent_record():
 
 @app.route("/api/student/<student_id>/data", methods=["DELETE"])
 @login_required
+@roles_required("admin")
 @csrf_protect
 def api_delete_student_data(student_id):
     """Delete all data for a student (GDPR-style right to erasure).
 
-    Permission: students can only delete their own data;
-    teachers/admins can delete any student's data.
+    V2.0 Sprint 7 (7.2): Restricted to admin/super_admin only.
+    Students can still request deletion via support ticket.
     """
     user = get_current_user()
     if not user:
@@ -1666,8 +1691,9 @@ def api_delete_student_data(student_id):
 def api_export_student_data(student_id):
     """Export all data for a student as JSON (GDPR-style data portability).
 
-    Permission: students can only export their own data;
-    teachers/admins can export any student's data.
+    V2.0 Sprint 7 (7.2): Restricted admin-level export to admin/head/super_admin.
+    Students can export their own data (PIPL data subject right, IDOR check below).
+    Teachers and below (non-student) are blocked from exporting others' data.
     """
     user = get_current_user()
     if not user:
@@ -1676,11 +1702,17 @@ def api_export_student_data(student_id):
         else:
             return jsonify({"ok": False, "error": "auth_required"}), 401
 
-    # Permission check
-    if user and user.get("role") == "student":
-        own = user.get("student_id", "")
-        if own and own != student_id:
-            audit_log("export_data_idor_blocked", target=student_id, own=own)
+    # Permission check: students can export own data only (IDOR);
+    # admin/head/super_admin can export any; teachers and others are blocked.
+    if user and not _demo_auth_open():
+        role = _resolve_role(user.get("role", ""))
+        if role == "student":
+            own = user.get("student_id", "")
+            if own and own != student_id:
+                audit_log("export_data_idor_blocked", target=student_id, own=own)
+                return jsonify({"ok": False, "error": "forbidden"}), 403
+        elif role not in ("admin", "head", "super_admin", "school_admin"):
+            audit_log("export_data_role_blocked", role=role, target=student_id)
             return jsonify({"ok": False, "error": "forbidden"}), 403
 
     from db_store import export_student_data

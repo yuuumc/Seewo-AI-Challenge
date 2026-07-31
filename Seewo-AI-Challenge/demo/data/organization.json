@@ -92,6 +92,22 @@
       "grade_level": 12,
       "academic_year": "2026-2027",
       "is_active": true
+    },
+    {
+      "id": 16,
+      "school_id": 1,
+      "name": "高二",
+      "grade_level": 11,
+      "academic_year": "2026-2027",
+      "is_active": true
+    },
+    {
+      "id": 17,
+      "school_id": 1,
+      "name": "高三",
+      "grade_level": 12,
+      "academic_year": "2026-2027",
+      "is_active": true
     }
   ],
   "classes": [
@@ -135,6 +151,15 @@
       "id": 9,
       "school_id": 1,
       "grade_id": 13,
+      "name": "高二(1)班",
+      "teacher_id": null,
+      "class_code": "G2-01",
+      "is_active": true
+    },
+    {
+      "id": 11,
+      "school_id": 1,
+      "grade_id": 16,
       "name": "高二(1)班",
       "teacher_id": null,
       "class_code": "G2-01",
@@ -201,12 +226,24 @@
         2
       ],
       "is_active": true
+    },
+    {
+      "id": 6,
+      "school_id": 1,
+      "name": "数学组",
+      "subject": "数学",
+      "leader_id": null,
+      "member_ids": [
+        1,
+        2
+      ],
+      "is_active": true
     }
   ],
   "_seq": {
     "school": 1,
-    "grade": 15,
-    "class": 10,
-    "subject_group": 5
+    "grade": 18,
+    "class": 12,
+    "subject_group": 6
   }
 }

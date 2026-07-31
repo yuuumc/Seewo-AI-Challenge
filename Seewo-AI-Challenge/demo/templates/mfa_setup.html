@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}MFA 设置{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto py-8 px-4">
+  <div class="bg-white shadow rounded-lg overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h1 class="text-2xl font-bold text-gray-900">多因素认证 (MFA) 设置</h1>
+      <p class="mt-1 text-sm text-gray-500">使用 Google Authenticator 或兼容应用扫描二维码绑定</p>
+    </div>
+
+    <div class="px-6 py-6">
+      {% if demo_mode %}
+      <div class="rounded-md bg-yellow-50 p-4 mb-4">
+        <p class="text-sm text-yellow-700">{{ message }}</p>
+      </div>
+      {% elif already_enabled %}
+      <div class="rounded-md bg-green-50 p-4 mb-4">
+        <p class="text-sm text-green-700">{{ message }}</p>
+      </div>
+      <form method="POST" class="mt-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="disable">
+        <button type="submit"
+                class="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50">
+          禁用 MFA
+        </button>
+      </form>
+      {% elif success %}
+      <div class="rounded-md bg-green-50 p-4 mb-4">
+        <p class="text-sm text-green-700">{{ message }}</p>
+      </div>
+      <a href="{{ url_for('index') }}"
+         class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+        返回首页
+      </a>
+      {% elif disabled %}
+      <div class="rounded-md bg-gray-50 p-4 mb-4">
+        <p class="text-sm text-gray-700">{{ message }}</p>
+      </div>
+      <a href="{{ url_for('mfa_setup') }}"
+         class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+        重新设置
+      </a>
+      {% elif secret and show_verify %}
+      <!-- Step 2: QR code + verification -->
+      <div class="space-y-6">
+        <div class="rounded-md bg-blue-50 p-4">
+          <p class="text-sm text-blue-700">
+            1. 打开 Google Authenticator，点击「+」添加新条目<br>
+            2. 扫描下方二维码或手动输入密钥
+          </p>
+        </div>
+        <div class="flex flex-col items-center space-y-4">
+          {% if qr_data and qr_data.startswith('data:image') %}
+          <img src="{{ qr_data }}" alt="MFA QR Code" class="w-48 h-48 border rounded-lg">
+          {% else %}
+          <div class="w-48 h-48 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-center p-4">
+            <span class="text-xs text-gray-400 break-all">{{ qr_data[:80] }}...</span>
+          </div>
+          <p class="text-xs text-gray-500">（安装 qrcode 库以显示二维码图片，或复制下方 URI 到二维码生成器）</p>
+          {% endif %}
+        </div>
+        <div class="bg-gray-50 rounded-md p-3">
+          <label class="text-xs font-medium text-gray-500">手动输入密钥</label>
+          <code class="block mt-1 text-sm font-mono text-gray-900 select-all bg-white px-2 py-1 rounded">{{ secret }}</code>
+        </div>
+        <form method="POST" class="space-y-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="verify">
+          <div>
+            <label for="mfa_code" class="block text-sm font-medium text-gray-700">
+              输入验证器显示的 6 位验证码
+            </label>
+            <input id="mfa_code" name="mfa_code" type="text" maxlength="6"
+                   required pattern="[0-9]{6}"
+                   class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-2xl text-center tracking-widest focus:ring-indigo-500 focus:border-indigo-500"
+                   placeholder="000000" inputmode="numeric" autocomplete="one-time-code">
+          </div>
+          {% if error %}
+          <div class="rounded-md bg-red-50 p-3">
+            <p class="text-sm text-red-700">{{ error }}</p>
+          </div>
+          {% endif %}
+          <button type="submit"
+                  class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+            确认绑定
+          </button>
+        </form>
+      </div>
+      {% else %}
+      <!-- Step 1: Initial setup -->
+      <div class="space-y-6">
+        {% if error %}
+        <div class="rounded-md bg-red-50 p-4">
+          <p class="text-sm text-red-700">{{ error }}</p>
+        </div>
+        {% endif %}
+        <div class="rounded-md bg-blue-50 p-4">
+          <p class="text-sm text-blue-700">
+            点击下方按钮生成 MFA 密钥，然后使用 Google Authenticator 扫描二维码完成绑定。
+            绑定后，每次登录需要输入验证器中的 6 位验证码。
+          </p>
+        </div>
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="generate">
+          <button type="submit"
+                  class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+            生成密钥
+          </button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -166,7 +166,7 @@ def _get_existing_class_names() -> set:
 
 @bp.route("/api/admin/import-students", methods=["POST"])
 @login_required
-@roles_required("admin", "head", "teacher")
+@roles_required("admin", "head")
 @data_scope()
 def import_students_preview():
     """Upload Excel/CSV and return preview with validation results."""
@@ -216,7 +216,7 @@ def import_students_preview():
 
 @bp.route("/api/admin/import-students/confirm", methods=["POST"])
 @login_required
-@roles_required("admin", "head", "teacher")
+@roles_required("admin", "head")
 @data_scope()
 def import_students_confirm():
     """Confirm import: write validated rows into students.json."""
@@ -281,7 +281,7 @@ def import_students_confirm():
 
 @bp.route("/api/admin/import-students/template")
 @login_required
-@roles_required("admin", "head", "teacher")
+@roles_required("admin", "head")
 def import_students_template():
     """Download Excel template for student import."""
     import openpyxl
