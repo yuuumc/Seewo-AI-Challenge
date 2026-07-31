@@ -439,6 +439,15 @@ class OpenAIProvider(LLMProvider):
     ) -> tuple[Optional[Any], Optional[str]]:
         """Call Chat Completions with retry + structured parsing.
 
+        Sprint 6 (6.3): trace_id propagation — the current request's
+        trace_id (from Flask g → tracing.get_trace_id()) is sent as
+        ``X-Trace-Id`` header so LLM API calls are correlatable with
+        the originating HTTP request in logs and upstream dashboards.
+
+        Sprint 6 (6.4): LLM call results are recorded to AlertManager
+        (llm_timeout rule) and metrics (seewo_llm_calls_total) so the
+        alerting sliding window has real data.
+
         Returns ``(parsed_data, error_string)``. Exactly one of the
         two is ``None``. On success ``parsed_data`` is either a
         ``dict`` (when ``json_mode=True``) or a ``str`` (when
@@ -453,7 +462,17 @@ class OpenAIProvider(LLMProvider):
         if json_mode:
             body["response_format"] = {"type": "json_object"}
 
+        # Sprint 6 (6.3): Get trace_id for request correlation
+        _trace_id = "no-trace"
+        try:
+            from tracing import get_trace_id
+            _trace_id = get_trace_id()
+        except Exception:
+            pass
+
         last_err: Optional[str] = None
+        _call_started = time.time()
+        _timed_out = False
         attempts = self._max_retries + 1
         for attempt in range(1, attempts + 1):
             try:
@@ -464,6 +483,7 @@ class OpenAIProvider(LLMProvider):
                     headers={
                         "Content-Type": "application/json",
                         "Authorization": f"Bearer {self._api_key}",
+                        "X-Trace-Id": _trace_id,
                     },
                 )
                 with urllib.request.urlopen(req, timeout=self._timeout) as resp:
@@ -476,6 +496,11 @@ class OpenAIProvider(LLMProvider):
                 )
                 if not content:
                     return None, f"empty content (attempt {attempt})"
+
+                # Sprint 6 (6.2/6.4): record successful LLM call
+                _call_duration = round((time.time() - _call_started) * 1000.0, 2)
+                _record_llm_telemetry(self.name, _call_duration, success=True, timed_out=False)
+
                 if json_mode:
                     try:
                         return json.loads(content), None
@@ -486,14 +511,47 @@ class OpenAIProvider(LLMProvider):
                 last_err = f"HTTP {exc.code} (attempt {attempt})"
             except urllib.error.URLError as exc:
                 last_err = f"URLError {exc.reason} (attempt {attempt})"
+                if "timeout" in str(exc.reason).lower():
+                    _timed_out = True
             except (TimeoutError, OSError) as exc:
                 last_err = f"network error: {exc} (attempt {attempt})"
+                _timed_out = True
             except json.JSONDecodeError as exc:
                 last_err = f"outer json parse error: {exc} (attempt {attempt})"
             # Linear backoff: 0.5s, then 1s
             if attempt < attempts:
                 time.sleep(0.5 * attempt)
+
+        # Sprint 6 (6.2/6.4): record failed LLM call
+        _call_duration = round((time.time() - _call_started) * 1000.0, 2)
+        _record_llm_telemetry(self.name, _call_duration, success=False, timed_out=_timed_out)
+
         return None, last_err or "unknown error"
+
+
+def _record_llm_telemetry(
+    provider_name: str,
+    duration_ms: float,
+    success: bool,
+    timed_out: bool,
+):
+    """Record LLM call telemetry to metrics + alerting (Sprint 6 6.2/6.4).
+
+    Lazy-imports ``metrics`` and ``alerting`` so the provider stays
+    import-safe when those modules are absent (e.g. unit tests that
+    only exercise the mock path). All errors are swallowed —
+    telemetry must never break grading.
+    """
+    try:
+        from metrics import record_llm_call
+        record_llm_call(provider_name, duration_ms, success, timed_out)
+    except Exception:
+        pass
+    try:
+        from alerting import get_alert_manager
+        get_alert_manager().record_llm_call(success=success, timed_out=timed_out)
+    except Exception:
+        pass
 
 
 def read_provider_config_from_env() -> Optional[Dict[str, str]]:

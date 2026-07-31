@@ -55,6 +55,26 @@
         }
       ],
       "status": "closed"
+    },
+    "s01_q5": {
+      "student_id": "s01",
+      "question_id": "q5",
+      "original_answer": "解：f'(x)=3x²-6ax+3a²=3(x²-2ax+a²)=3(x-a)²\n因为(x-a)²≥0，所以f'(x)≥0\n故f(x)在R上单调递增。",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "test",
+          "result": "incorrect",
+          "mastery_level": "not_mastered",
+          "feedback": "订正方向需要调整。标准答案的关键思路：解：f'(x)=3x²-6ax+3a²=3(x-a)²≥0，\n故f(x)在R上单调递增。。建议回顾相关知识点后重试。",
+          "comparison": "原答案与订正均存在方向性偏差。字数 75→4（精简了），建议重新审题。",
+          "encouragement": "「含参函数分类讨论」确实有难度——原答案的困惑很正常。退一步看看定义和公式，下次订正会更有把握。",
+          "next_steps": "回顾课本相关定义和例题，再尝试订正。",
+          "graded_by": "mock",
+          "timestamp": "2026-07-31T08:12:47.753427"
+        }
+      ],
+      "status": "open"
     }
   }
 }

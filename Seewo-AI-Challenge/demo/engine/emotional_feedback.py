@@ -174,9 +174,24 @@ def generate_emotional_feedback(
     llm_text = _try_llm_emotional_feedback(
         student_history, current_performance, student_id
     )
-    if llm_text:
-        return llm_text
-    return _mock_emotional_feedback(student_history, current_performance, student_id)
+    raw_text = llm_text if llm_text else _mock_emotional_feedback(
+        student_history, current_performance, student_id
+    )
+
+    # Sprint 6 (6.10): content safety filter on emotional feedback output
+    try:
+        from content_safety_filter import filter_llm_output
+
+        filt = filter_llm_output(
+            raw_text=raw_text,
+            scenario="emotional",
+            school_id=1,
+            student_id=student_id,
+            prompt_name="emotional_feedback",
+        )
+        return filt["filtered_text"]
+    except Exception:
+        return raw_text
 
 
 # ── LLM hook（有 key 走真模型）────────────────────────────────────────

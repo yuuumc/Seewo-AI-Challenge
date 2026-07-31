@@ -1,0 +1,136 @@
+{# Sprint 6 · 6.5 P1 · /admin/usage 教师用量看板 #}
+{% extends "base.html" %}
+{% block title %}教师用量看板 · 希沃智教π{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+{% endblock %}
+
+{% block nav %}
+  <a href="/admin/organization" class="px-3 py-2 rounded-lg text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition">组织树</a>
+  <a href="/admin/usage" class="px-3 py-2 rounded-lg bg-primary-50 text-primary-600 font-semibold">用量看板</a>
+  <a href="/admin/health" class="px-3 py-2 rounded-lg text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition">健康看板</a>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6" data-reveal>
+  <!-- 页头 -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">教师用量看板</h1>
+      <p class="text-sm text-gray-500 mt-1">批改量 / LLM 调用 / 活跃学生趋势，按学校与教师维度排行</p>
+    </div>
+    <div class="inline-flex rounded-xl bg-white border border-gray-200 p-0.5 shadow-sm" role="group">
+      <button data-period="day" class="period-btn px-4 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-primary-600 transition">今日</button>
+      <button data-period="week" class="period-btn px-4 py-1.5 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 transition">本周</button>
+      <button data-period="month" class="period-btn px-4 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-primary-600 transition">本月</button>
+    </div>
+  </div>
+
+  <!-- 总量卡片 -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
+      <div class="flex items-center justify-between"><span class="text-xs text-gray-400">批改总量</span><i data-lucide="file-check" class="w-4 h-4 text-primary-400"></i></div>
+      <div id="kpi-grading" class="text-2xl font-extrabold text-gray-900 mt-2">—</div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
+      <div class="flex items-center justify-between"><span class="text-xs text-gray-400">LLM 调用</span><i data-lucide="cpu" class="w-4 h-4 text-primary-400"></i></div>
+      <div id="kpi-llm" class="text-2xl font-extrabold text-gray-900 mt-2">—</div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
+      <div class="flex items-center justify-between"><span class="text-xs text-gray-400">活跃学生</span><i data-lucide="users" class="w-4 h-4 text-primary-400"></i></div>
+      <div id="kpi-students" class="text-2xl font-extrabold text-gray-900 mt-2">—</div>
+    </div>
+  </div>
+
+  <!-- 趋势柱状图 -->
+  <section class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
+    <h2 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><i data-lucide="bar-chart-3" class="w-4 h-4 text-primary-500"></i>用量趋势</h2>
+    <div id="usage-chart" style="width:100%;height:320px;"></div>
+  </section>
+
+  <!-- 排行表 -->
+  <section class="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+    <div class="px-5 py-3.5 border-b border-gray-100">
+      <h2 class="text-sm font-bold text-gray-800 flex items-center gap-2"><i data-lucide="trophy" class="w-4 h-4 text-warm-500"></i>教师排行</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs">
+          <tr>
+            <th class="px-5 py-2.5 text-left">#</th>
+            <th class="px-5 py-2.5 text-left">教师</th>
+            <th class="px-5 py-2.5 text-left">学校</th>
+            <th class="px-5 py-2.5 text-right">批改量</th>
+            <th class="px-5 py-2.5 text-right">LLM 调用</th>
+            <th class="px-5 py-2.5 text-right">活跃学生</th>
+          </tr>
+        </thead>
+        <tbody id="ranking-body" class="divide-y divide-gray-100"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin/dashboard-api.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var chart = echarts.init($('#usage-chart'));
+  var state = { period: 'week' };
+
+  document.addEventListener('DOMContentLoaded', init);
+  window.addEventListener('resize', function () { chart.resize(); });
+
+  $$('.period-btn').forEach(function (b) { b.addEventListener('click', function () {
+    state.period = b.dataset.period;
+    $$('.period-btn').forEach(function (x) { x.className = 'period-btn px-4 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-primary-600 transition'; });
+    b.className = 'period-btn px-4 py-1.5 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 transition';
+    load();
+  }); });
+
+  function $$(s) { return Array.prototype.slice.call(document.querySelectorAll(s)); }
+
+  async function init() { lucide.createIcons(); await load(); }
+
+  async function load() {
+    try {
+      var d = await DashboardAPI.usage(state.period);
+      if (DashboardAPI.USE_MOCK) {}
+      $('#kpi-grading').textContent = fmt(d.totals.grading_count);
+      $('#kpi-llm').textContent = fmt(d.totals.llm_calls);
+      $('#kpi-students').textContent = fmt(d.totals.active_students);
+      renderChart(d.chart);
+      renderRanking(d.ranking);
+    } catch (e) { console.error(e); }
+  }
+
+  function renderChart(data) {
+    chart.setOption({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['批改量', 'LLM 调用', '活跃学生'], top: 0, textStyle: { fontSize: 11 } },
+      grid: { left: 48, right: 16, top: 36, bottom: 32 },
+      xAxis: { type: 'category', data: data.map(function (d) { return d.label; }), axisLabel: { fontSize: 10 } },
+      yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
+      series: [
+        { name: '批改量', type: 'bar', data: data.map(function (d) { return d.grading_count; }), itemStyle: { color: '#4a6cf7', borderRadius: [3, 3, 0, 0] } },
+        { name: 'LLM 调用', type: 'bar', data: data.map(function (d) { return d.llm_calls; }), itemStyle: { color: '#8a9ff7', borderRadius: [3, 3, 0, 0] } },
+        { name: '活跃学生', type: 'line', data: data.map(function (d) { return d.active_students; }), smooth: true, lineStyle: { color: '#10b981' }, itemStyle: { color: '#10b981' } }
+      ]
+    });
+  }
+
+  function renderRanking(rows) {
+    $('#ranking-body').innerHTML = rows.map(function (r, i) {
+      return '<tr class="hover:bg-gray-50"><td class="px-5 py-3 text-gray-400">' + (i + 1) + '</td><td class="px-5 py-3 font-medium text-gray-800">' + esc(r.teacher) + '</td><td class="px-5 py-3 text-gray-600">' + esc(r.school) + '</td><td class="px-5 py-3 text-right">' + fmt(r.grading_count) + '</td><td class="px-5 py-3 text-right">' + fmt(r.llm_calls) + '</td><td class="px-5 py-3 text-right">' + fmt(r.active_students) + '</td></tr>';
+    }).join('');
+  }
+
+  function fmt(n) { return (n || 0).toLocaleString('zh-CN'); }
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+})();
+</script>
+{% endblock %}

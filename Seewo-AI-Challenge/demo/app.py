@@ -36,8 +36,9 @@ Usage:
 
 import os
 import sys
+import time
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session  # P0: 补 flash import（修 9 个 test_auth 500）
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, g  # P0: 补 flash import（修 9 个 test_auth 500）
 
 from engine.grader import (
     grade_choice,
@@ -102,15 +103,49 @@ register_error_handlers(app)
 app.register_blueprint(org_api_bp)
 app.register_blueprint(batch_import_bp)
 
-# V2.0 Sprint 5: Tenant middleware (injects g.school_id for every request)
-try:
-    from tenant_middleware import TenantMiddleware
-    TenantMiddleware(app)
-except ImportError:
-    pass  # tenant_middleware not available (older codebase)
+# V2.0 Sprint 6: Observability middleware (supersedes Sprint 5 tenant-only middleware)
+from tenant_middleware import TenantMiddleware  # noqa: E402
+from request_logging import RequestLoggingMiddleware  # noqa: E402
+from tracing import init_tracing  # noqa: E402
+from alerting import get_alert_manager  # noqa: E402
+from metrics import record_http_request, render_metrics  # noqa: E402
+
+TenantMiddleware(app)
+RequestLoggingMiddleware(app)
+init_tracing(app)
+
+# V2.0 Sprint 6: After-request hook for metrics + alerting
+@app.after_request
+def _sprint6_after_request(response):
+    """Record HTTP metrics and check alert thresholds."""
+    try:
+        from flask import g
+        latency_ms = round((time.time() - g.request_start_time) * 1000.0, 2)
+        record_http_request(request.method, request.endpoint or "unknown",
+                            response.status_code, latency_ms)
+        get_alert_manager().record_http_status(response.status_code)
+        # Check alert rules every 10th request (lightweight)
+        if hasattr(g, "request_id") and hash(g.request_id) % 10 == 0:
+            get_alert_manager().check_all()
+    except Exception:
+        pass  # Metrics must not break UX
+    return response
+
 
 
 # ── Auth routes ───────────────────────────────────────────────────────
+
+# V2.0 Sprint 6: Admin dashboard routes
+@app.route("/admin/usage")
+@roles_required("school_admin", "super_admin")
+def admin_usage():
+    return render_template("admin/usage.html")
+
+@app.route("/admin/health")
+@roles_required("school_admin", "super_admin")
+def admin_health():
+    return render_template("admin/health.html")
+
 @app.route("/login", methods=["GET", "POST"])
 @csrf_protect
 @rate_limit(max_per_minute=10)
@@ -988,6 +1023,34 @@ def readyz():
 
     resp = make_response(jsonify(body), 200 if ready else 503)
     return resp
+
+
+# ── V2.0 Sprint 6: Observability endpoints ────────────────────────────
+
+@app.route("/metrics")
+def metrics():
+    """Prometheus text exposition format endpoint (6.2).
+
+    No auth required (metrics don't contain PII; Prometheus scrapes
+    without session cookies). Returns text/plain.
+    """
+    from flask import Response
+    return Response(render_metrics(), mimetype="text/plain; version=0.0.4; charset=utf-8")
+
+
+@app.route("/api/admin/alerts")
+@login_required
+@roles_required("admin", "head")
+def api_admin_alerts():
+    """Alert rule status + recent alerts (6.4).
+
+    Returns current alert rule status and recent fired alerts.
+    """
+    am = get_alert_manager()
+    return jsonify({
+        "rules": am.get_rule_status(),
+        "recent_alerts": am.get_recent_alerts(limit=20),
+    })
 
 
 # ── OCR Upload (Sprint 2) ─────────────────────────────────────────────
@@ -1916,6 +1979,105 @@ def api_teacher_mastery():
         "homeworks": homeworks_result,
         "students": students_result,
     })
+
+
+# ── Sprint 6 API: 多租户配置管理 (6.7) + 内容安全过滤日志 (6.10) ──────
+
+@app.route("/api/admin/tenant-config")
+@login_required
+@roles_required("admin")
+def api_tenant_config_list():
+    """List all tenant LLM configs (6.7)."""
+    from tenant_llm_config_manager import list_tenant_configs
+
+    configs = list_tenant_configs()
+    # Mask api_key in response
+    for c in configs:
+        if c.get("api_key_secret"):
+            c["api_key_secret"] = "***"
+    return jsonify({"ok": True, "configs": configs})
+
+
+@app.route("/api/admin/tenant-config/<int:school_id>")
+@login_required
+@roles_required("admin")
+def api_tenant_config_get(school_id):
+    """Get resolved LLM config for a school (6.7)."""
+    from tenant_llm_config_manager import resolve_llm_config, get_tenant_config
+
+    subject = request.args.get("subject")
+    resolved = resolve_llm_config(school_id, subject_type=subject)
+    # Mask api_key in response
+    if resolved.get("api_key"):
+        resolved["api_key"] = "***"
+    tenant = get_tenant_config(school_id)
+    return jsonify({
+        "ok": True,
+        "resolved": resolved,
+        "tenant_config": tenant,
+    })
+
+
+@app.route("/api/admin/tenant-config/<int:school_id>", methods=["PUT"])
+@login_required
+@roles_required("admin")
+@csrf_protect
+def api_tenant_config_update(school_id):
+    """Create or update tenant LLM config (6.7)."""
+    from tenant_llm_config_manager import set_tenant_config
+
+    data = request.get_json(silent=True) or {}
+    config = set_tenant_config(
+        school_id,
+        model_name=data.get("model_name"),
+        temperature=data.get("temperature"),
+        max_tokens=data.get("max_tokens"),
+        timeout=data.get("timeout"),
+        api_key_secret=data.get("api_key_secret"),
+        base_url=data.get("base_url"),
+        subject_overrides=data.get("subject_overrides"),
+    )
+    # Mask api_key in response
+    if config.get("api_key_secret"):
+        config["api_key_secret"] = "***"
+    return jsonify({"ok": True, "config": config})
+
+
+@app.route("/api/admin/tenant-config/<int:school_id>", methods=["DELETE"])
+@login_required
+@roles_required("admin")
+@csrf_protect
+def api_tenant_config_delete(school_id):
+    """Delete tenant LLM config (6.7). School falls back to global defaults."""
+    from tenant_llm_config_manager import delete_tenant_config
+
+    deleted = delete_tenant_config(school_id)
+    return jsonify({"ok": deleted, "message": "已删除" if deleted else "配置不存在"})
+
+
+@app.route("/api/admin/filter-logs")
+@login_required
+@roles_required("admin", "head")
+def api_filter_logs():
+    """Get content safety filter logs (6.10)."""
+    from content_safety_filter import get_filter_logs
+
+    school_id = request.args.get("school_id", type=int)
+    limit = request.args.get("limit", 100, type=int)
+    logs = get_filter_logs(school_id=school_id, limit=min(limit, 500))
+    return jsonify({"ok": True, "logs": logs, "count": len(logs)})
+
+
+@app.route("/api/admin/filter-stats")
+@login_required
+@roles_required("admin", "head")
+def api_filter_stats():
+    """Get content safety filter statistics (6.10)."""
+    from content_safety_filter import get_filter_stats
+
+    school_id = request.args.get("school_id", type=int)
+    stats = get_filter_stats(school_id=school_id)
+    return jsonify({"ok": True, "stats": stats})
 
 
 if __name__ == "__main__":

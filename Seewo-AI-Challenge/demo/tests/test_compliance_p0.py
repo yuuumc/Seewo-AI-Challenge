@@ -240,9 +240,11 @@ class TestP0_3_ParentalConsent(unittest.TestCase):
             login(client, "s01", "student123")
 
             # s01 hasn't consented → submission should be blocked
+            from _helpers import get_csrf_token
+            csrf_token = get_csrf_token(client)
             resp = client.post("/api/correction/submit",
                 json={"submission_id": "s01_hw_001", "question_id": "q5", "correction_text": "test"},
-                headers={"Content-Type": "application/json"})
+                headers={"Content-Type": "application/json", "X-CSRF-Token": csrf_token})
             self.assertEqual(resp.status_code, 403)
             data = resp.get_json()
             self.assertEqual(data.get("error"), "consent_required")

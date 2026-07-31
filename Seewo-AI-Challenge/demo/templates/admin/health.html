@@ -1,0 +1,208 @@
+{# Sprint 6 · 6.6 P1 · /admin/health 系统健康看板 #}
+{% extends "base.html" %}
+{% block title %}系统健康看板 · 希沃智教π{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+{% endblock %}
+
+{% block nav %}
+  <a href="/admin/organization" class="px-3 py-2 rounded-lg text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition">组织树</a>
+  <a href="/admin/usage" class="px-3 py-2 rounded-lg text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition">用量看板</a>
+  <a href="/admin/health" class="px-3 py-2 rounded-lg bg-primary-50 text-primary-600 font-semibold">健康看板</a>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6" data-reveal>
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">系统健康看板</h1>
+      <p class="text-sm text-gray-500 mt-1">基础设施状态 · 批改耗时 · 成功率 · 请求日志 · 告警历史</p>
+    </div>
+    <button id="btn-refresh" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm hover:bg-gray-50"><i data-lucide="refresh-cw" class="w-4 h-4"></i>刷新</button>
+  </div>
+
+  <!-- ① 基础设施状态卡片 -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4">
+      <div class="flex items-center justify-between"><span class="text-xs text-gray-400">CPU</span><span id="cpu-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full"></span></div>
+      <div id="cpu-value" class="text-2xl font-extrabold mt-1">—</div>
+      <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div id="cpu-bar" class="h-full rounded-full transition-all" style="width:0%"></div></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4">
+      <div class="flex items-center justify-between"><span class="text-xs text-gray-400">内存</span><span id="mem-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full"></span></div>
+      <div id="mem-value" class="text-2xl font-extrabold mt-1">—</div>
+      <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div id="mem-bar" class="h-full rounded-full transition-all" style="width:0%"></div></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4">
+      <div class="flex items-center justify-between"><span class="text-xs text-gray-400">磁盘</span><span id="disk-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full"></span></div>
+      <div id="disk-value" class="text-2xl font-extrabold mt-1">—</div>
+      <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div id="disk-bar" class="h-full rounded-full transition-all" style="width:0%"></div></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-4">
+      <div class="flex items-center justify-between"><span class="text-xs text-gray-400">PG 连接池</span><span id="pg-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full"></span></div>
+      <div id="pg-value" class="text-2xl font-extrabold mt-1">—</div>
+      <div class="text-xs text-gray-400 mt-1" id="pg-detail">—</div>
+    </div>
+  </div>
+
+  <!-- ② 趋势 + ③ 成功率仪表盘 -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <section class="lg:col-span-2 bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
+      <h2 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><i data-lucide="trending-up" class="w-4 h-4 text-primary-500"></i>批改耗时趋势（24h）</h2>
+      <div id="latency-chart" style="width:100%;height:280px;"></div>
+    </section>
+    <section class="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-5">
+      <h2 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><i data-lucide="gauge" class="w-4 h-4 text-accent-500"></i>批改成功率</h2>
+      <div id="success-gauge" style="width:100%;height:280px;"></div>
+    </section>
+  </div>
+
+  <!-- ④ 请求日志 -->
+  <section class="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+      <h2 class="text-sm font-bold text-gray-800 flex items-center gap-2"><i data-lucide="list" class="w-4 h-4 text-primary-500"></i>请求日志</h2>
+      <select id="log-filter" class="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-primary-400 outline-none">
+        <option value="">全部</option>
+        <option value="error">仅错误(5xx)</option>
+        <option value="warn">4xx+5xx</option>
+      </select>
+    </div>
+    <div class="overflow-x-auto max-h-[40vh]">
+      <table class="w-full text-xs">
+        <thead class="bg-gray-50 text-gray-500 sticky top-0">
+          <tr><th class="px-4 py-2 text-left">时间</th><th class="px-4 py-2 text-left">Request ID</th><th class="px-4 py-2 text-left">端点</th><th class="px-4 py-2 text-left">状态</th><th class="px-4 py-2 text-right">耗时</th><th class="px-4 py-2 text-left">角色</th></tr>
+        </thead>
+        <tbody id="logs-body" class="divide-y divide-gray-100"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ⑤ 告警历史 -->
+  <section class="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden">
+    <div class="px-5 py-3.5 border-b border-gray-100">
+      <h2 class="text-sm font-bold text-gray-800 flex items-center gap-2"><i data-lucide="bell" class="w-4 h-4 text-warm-500"></i>告警历史</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs">
+          <tr><th class="px-4 py-2.5 text-left">时间</th><th class="px-4 py-2.5 text-left">规则</th><th class="px-4 py-2.5 text-left">级别</th><th class="px-4 py-2.5 text-left">消息</th><th class="px-4 py-2.5 text-left">状态</th></tr>
+        </thead>
+        <tbody id="alerts-body" class="divide-y divide-gray-100"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin/dashboard-api.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var $all = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+  var latencyChart = echarts.init($('#latency-chart'));
+  var gaugeChart = echarts.init($('#success-gauge'));
+
+  document.addEventListener('DOMContentLoaded', init);
+  window.addEventListener('resize', function () { latencyChart.resize(); gaugeChart.resize(); });
+  $('#btn-refresh').addEventListener('click', init);
+  $('#log-filter').addEventListener('change', function () { renderLogs(); });
+
+  async function init() {
+    lucide.createIcons();
+    try {
+      var p = await Promise.all([DashboardAPI.summary(), DashboardAPI.gradingTrend(24), DashboardAPI.successRate(), DashboardAPI.logs('page=1&size=20'), DashboardAPI.alerts('page=1&size=20')]);
+      renderSummary(p[0]); renderLatency(p[1]); renderGauge(p[2]); window._logs = p[3]; window._alerts = p[4]; renderLogs(); renderAlerts();
+    } catch (e) { console.error(e); }
+  }
+
+  function statusColor(v) { return v < 70 ? '#10b981' : v < 90 ? '#f59e0b' : '#ef4444'; }
+  function statusLabel(v) { return v < 70 ? '正常' : v < 90 ? '告警' : '严重'; }
+
+  function renderSummary(s) {
+    [['cpu', s.cpu], ['mem', s.memory], ['disk', s.disk]].forEach(function (pair) {
+      var key = pair[0], v = pair[1];
+      $('#' + key + '-value').textContent = v.toFixed(1) + '%';
+      $('#' + key + '-value').style.color = statusColor(v);
+      $('#' + key + '-bar').style.width = v + '%';
+      $('#' + key + '-bar').style.background = statusColor(v);
+      var badge = $('#' + key + '-badge');
+      badge.textContent = statusLabel(v);
+      badge.style.background = v < 70 ? '#dcfce7' : v < 90 ? '#fef3c7' : '#fee2e2';
+      badge.style.color = statusColor(v);
+    });
+    var pgUsage = s.pg_pool.active / s.pg_pool.max * 100;
+    $('#pg-value').textContent = s.pg_pool.active + '/' + s.pg_pool.max;
+    $('#pg-value').style.color = statusColor(pgUsage);
+    $('#pg-detail').textContent = '活跃 ' + s.pg_pool.active + ' · 空闲 ' + s.pg_pool.idle;
+    var pgb = $('#pg-badge'); pgb.textContent = statusLabel(pgUsage);
+    pgb.style.background = pgUsage < 70 ? '#dcfce7' : pgUsage < 90 ? '#fef3c7' : '#fee2e2';
+    pgb.style.color = statusColor(pgUsage);
+  }
+
+  function renderLatency(d) {
+    var pts = d.points;
+    latencyChart.setOption({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['平均耗时', 'P95 耗时'], top: 0, textStyle: { fontSize: 11 } },
+      grid: { left: 56, right: 16, top: 36, bottom: 28 },
+      xAxis: { type: 'category', data: pts.map(function (p) { return p.ts; }), axisLabel: { fontSize: 10 } },
+      yAxis: { type: 'value', name: 'ms', axisLabel: { fontSize: 10 } },
+      series: [
+        { name: '平均耗时', type: 'line', data: pts.map(function (p) { return p.avg_latency_ms; }), smooth: true, lineStyle: { color: '#4a6cf7' }, itemStyle: { color: '#4a6cf7' }, areaStyle: { color: 'rgba(74,108,247,0.1)' } },
+        { name: 'P95 耗时', type: 'line', data: pts.map(function (p) { return p.p95_latency_ms; }), smooth: true, lineStyle: { color: '#f59e0b', type: 'dashed' }, itemStyle: { color: '#f59e0b' } }
+      ]
+    });
+  }
+
+  function renderGauge(s) {
+    var pct = (s.rate * 100).toFixed(1);
+    gaugeChart.setOption({
+      series: [{
+        type: 'gauge', radius: '88%', center: ['50%', '60%'],
+        min: 80, max: 100,
+        progress: { show: true, width: 14 },
+        axisLine: { lineStyle: { width: 14, color: [[0.9, '#ef4444'], [0.97, '#f59e0b'], [1, '#10b981']] } },
+        pointer: { width: 5 },
+        detail: { valueAnimation: true, formatter: '{value}%', fontSize: 22, offsetCenter: [0, '30%'], color: '#374151' },
+        title: { offsetCenter: [0, '60%'], fontSize: 11, color: '#9ca3af' },
+        data: [{ value: pct, name: '成功率 (' + s.window + ')' }]
+      }]
+    });
+  }
+
+  function renderLogs() {
+    var logs = window._logs ? window._logs.items : [];
+    var filter = $('#log-filter').value;
+    var rows = logs.filter(function (l) {
+      if (!filter) return true;
+      if (filter === 'error') return l.status >= 500;
+      if (filter === 'warn') return l.status >= 400;
+      return true;
+    });
+    $('#logs-body').innerHTML = rows.map(function (l) {
+      var sc = l.status < 300 ? 'text-accent-700' : l.status < 400 ? 'text-primary-600' : l.status < 500 ? 'text-warm-700' : 'text-danger-700';
+      return '<tr class="hover:bg-gray-50"><td class="px-4 py-2 text-gray-500 whitespace-nowrap">' + esc(l.ts) + '</td><td class="px-4 py-2 font-mono text-gray-400">' + esc(l.request_id) + '</td><td class="px-4 py-2 text-gray-700">' + esc(l.method) + ' ' + esc(l.endpoint) + '</td><td class="px-4 py-2 font-bold ' + sc + '">' + l.status + '</td><td class="px-4 py-2 text-right text-gray-600">' + l.latency_ms + 'ms</td><td class="px-4 py-2 text-gray-500">' + esc(l.user_role) + '</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">无日志</td></tr>';
+  }
+
+  function renderAlerts() {
+    var rows = (window._alerts ? window._alerts.items : []);
+    var ruleLabel = { http_5xx: '5xx 错误率', llm_timeout: 'LLM 超时', grading_fail_rate: '批改失败率' };
+    $('#alerts-body').innerHTML = rows.map(function (a) {
+      var sevBadge = a.severity === 'critical'
+        ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-danger-50 text-danger-700">严重</span>'
+        : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-warm-50 text-warm-700">警告</span>';
+      var stBadge = a.status === 'firing'
+        ? '<span class="inline-flex items-center gap-1 text-xs text-danger-600"><span class="w-1.5 h-1.5 rounded-full bg-danger-500 animate-pulse"></span>触发中</span>'
+        : '<span class="text-xs text-gray-400">已恢复 · ' + esc(a.resolved_at || '') + '</span>';
+      return '<tr class="hover:bg-gray-50"><td class="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">' + esc(a.ts) + '</td><td class="px-4 py-3 text-gray-700">' + esc(ruleLabel[a.rule] || a.rule) + '</td><td class="px-4 py-3">' + sevBadge + '</td><td class="px-4 py-3 text-gray-600 text-sm">' + esc(a.message) + '</td><td class="px-4 py-3">' + stBadge + '</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">无告警记录</td></tr>';
+  }
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+})();
+</script>
+{% endblock %}

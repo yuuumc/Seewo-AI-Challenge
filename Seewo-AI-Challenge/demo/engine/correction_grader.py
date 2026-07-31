@@ -17,6 +17,44 @@ from typing import Any, Dict, Optional
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
+def _apply_correction_content_filter(
+    result: dict,
+    student_id: str,
+    question: dict,
+) -> dict:
+    """Sprint 6 (6.10): Apply content safety filter to encouragement.
+
+    Mutates ``result["encouragement"]`` in place if the filter
+    decides to degrade or block. Silently passes through on any
+    import error.
+    """
+    try:
+        from content_safety_filter import filter_llm_output
+
+        raw = result.get("encouragement", "")
+        if not raw:
+            return result
+        filt = filter_llm_output(
+            raw_text=raw,
+            scenario="correction",
+            school_id=1,
+            student_id=student_id,
+            prompt_name=question.get("type", "long_answer"),
+            question=question,
+            student_answer="",
+        )
+        result["encouragement"] = filt["filtered_text"]
+        if filt["decision"] != "pass":
+            result["_content_filter"] = {
+                "decision": filt["decision"],
+                "category": filt["category"],
+                "severity": filt["severity"],
+            }
+    except Exception:
+        pass
+    return result
+
+
 def _load_json(name: str) -> Any:
     with open(DATA_DIR / name, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -247,7 +285,7 @@ def grade_correction(
             llm_result["emotional_feedback"] = _attach_correction_emotional_feedback(
                 student_id, question, original_result, llm_result
             )
-        return llm_result
+        return _apply_correction_content_filter(llm_result, student_id, question)
 
     # 2. Mock 规则引擎
     mastery, is_correct = _determine_mastery(question, correction_text)
@@ -275,7 +313,7 @@ def grade_correction(
     result["emotional_feedback"] = _attach_correction_emotional_feedback(
         student_id, question, original_result, result
     )
-    return result
+    return _apply_correction_content_filter(result, student_id, question)
 
 
 def _attach_correction_emotional_feedback(

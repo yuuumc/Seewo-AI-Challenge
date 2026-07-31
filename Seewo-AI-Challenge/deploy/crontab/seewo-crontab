@@ -1,0 +1,41 @@
+# Seewo AI Challenge — Crontab 定时任务模板
+# V2.0 Sprint 6 (6.12): 定时备份 + 恢复演练
+#
+# 部署方式：
+#   crontab -e  → 粘贴以下内容（修改路径后）
+#   或: crontab /path/to/seewo-crontab
+#
+# 日志位置：
+#   /var/log/seewo-backup.log — 每日备份日志
+#   /var/log/seewo-drill.log  — 每月演练日志
+#
+# 前置条件：
+#   1. PG 环境变量已配置（/root/.pgenv 或 systemd environment）
+#   2. OSS 环境变量已配置（如需 OSS 上传）
+#   3. Python3 + pg_dump + psql 已安装
+
+# ── 环境变量 ──────────────────────────────────────────────────────────
+# 在 crontab 顶部设置（cron 不继承用户 shell 环境）
+# PG_HOST=127.0.0.1
+# PG_PORT=5432
+# PG_DB=seewo
+# PG_USER=seewo
+# PG_PASSWORD=your_password_here
+# BACKUP_DIR=/var/backups/seewo-pg
+# RETENTION_DAYS=30
+# OSS_ENDPOINT=oss-cn-beijing.aliyuncs.com
+# OSS_BUCKET=seewo-backup
+# OSS_ACCESS_KEY=your_key
+# OSS_SECRET_KEY=your_secret
+
+# ── 每日备份（每天 2:00 AM）──────────────────────────────────────────
+0 2 * * * /usr/bin/python3 /root/seewo-ai-challenge/Seewo-AI-Challenge/scripts/backup_pg.py backup --oss >> /var/log/seewo-backup.log 2>&1
+
+# ── 每月恢复演练（每月 1 日 3:00 AM）────────────────────────────────
+0 3 1 * * /usr/bin/python3 /root/seewo-ai-challenge/Seewo-AI-Challenge/scripts/backup_drill.py --report-dir /var/log/seewo-drills >> /var/log/seewo-drill.log 2>&1
+
+# ── 备份文件清理（每周日 4:00 AM，清理过期本地备份）─────────────────
+0 4 * * 0 find /var/backups/seewo-pg -name "backup_*.sql.gz" -mtime +30 -delete >> /var/log/seewo-backup.log 2>&1
+
+# ── 证书到期检查（每天 8:00 AM）──────────────────────────────────────
+0 8 * * * /usr/bin/python3 /root/seewo-ai-challenge/Seewo-AI-Challenge/scripts/check_cert_expiry.py >> /var/log/seewo-cert-check.log 2>&1

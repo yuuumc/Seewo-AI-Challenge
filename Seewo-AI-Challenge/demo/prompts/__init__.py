@@ -57,6 +57,13 @@ _SPRINT3_PROMPT_NAMES: tuple[str, ...] = (
     "emotional_feedback",
 )
 
+# ---------------------------------------------------------------------------
+# Sprint 6 内容安全过滤 prompt（6.10）。
+# ---------------------------------------------------------------------------
+_SPRINT6_PROMPT_NAMES: tuple[str, ...] = (
+    "content_safety_filter",
+)
+
 # subject_type → prompt name 映射（外部按学科/题型取 prompt 的统一入口）
 _SUBJECT_TYPE_MAP: dict[str, str] = {
     "math_calculation": "math_step_grading",
@@ -82,7 +89,7 @@ def _read_prompt_file(name: str) -> str:
     Raises:
         FileNotFoundError: if the .md file does not exist in this package.
     """
-    _all = _PROMPT_NAMES + _MULTI_SUBJECT_PROMPT_NAMES + _SPRINT3_PROMPT_NAMES
+    _all = _PROMPT_NAMES + _MULTI_SUBJECT_PROMPT_NAMES + _SPRINT3_PROMPT_NAMES + _SPRINT6_PROMPT_NAMES
     if name not in _all:
         raise ValueError(
             f"Unknown prompt name: {name!r}. Valid: {_all}"
@@ -211,6 +218,18 @@ def list_sprint3_prompts() -> List[Dict[str, str]]:
     return out
 
 
+def load_content_safety_filter() -> str:
+    """Sprint 6 (6.10): AI 内容安全过滤 system prompt.
+
+    用于 content_safety_filter._llm_filter()，审核 LLM 生成文本的
+    安全性（5 维度 → 3 级判定 pass/degrade/block）。
+
+    Returns:
+        System prompt string (verbatim from content_safety_filter.md).
+    """
+    return _read_prompt_file("content_safety_filter")
+
+
 def get_prompt(subject_type: str) -> str:
     """按 subject_type 取 system prompt（统一入口）。
 
@@ -246,4 +265,5 @@ __all__ = [
     "load_correction_grading",
     "load_emotional_feedback",
     "list_sprint3_prompts",
+    "load_content_safety_filter",
 ]

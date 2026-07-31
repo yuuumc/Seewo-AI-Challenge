@@ -32,6 +32,46 @@ except Exception:  # pragma: no cover - defensive for legacy deploys
 DATA_DIR = Path(__file__).parent.parent / "data"
 
 
+def _apply_content_safety_filter(
+    result: dict,
+    student_id: str,
+    question: dict,
+    scenario: str = "grading",
+) -> dict:
+    """Sprint 6 (6.10): Apply content safety filter to overall_feedback.
+
+    Mutates ``result["overall_feedback"]`` in place if the filter
+    decides to degrade or block. Silently passes through on any
+    import error (backward-compat with deployments that don't ship
+    the content_safety_filter module).
+    """
+    try:
+        from content_safety_filter import filter_llm_output
+
+        raw = result.get("overall_feedback", "")
+        if not raw:
+            return result
+        filt = filter_llm_output(
+            raw_text=raw,
+            scenario=scenario,
+            school_id=1,
+            student_id=student_id,
+            prompt_name=question.get("type", "long_answer"),
+            question=question,
+            student_answer=result.get("student_answer", ""),
+        )
+        result["overall_feedback"] = filt["filtered_text"]
+        if filt["decision"] != "pass":
+            result["_content_filter"] = {
+                "decision": filt["decision"],
+                "category": filt["category"],
+                "severity": filt["severity"],
+            }
+    except Exception:
+        pass
+    return result
+
+
 def load_json(name):
     with open(DATA_DIR / name, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -98,7 +138,38 @@ def grade_long_answer(student_answer: str, question: dict, student_id: str) -> d
 
     This is the core differentiator — instead of just ✓/✗, we analyze each
     reasoning step, classify the error type, and generate a personalized hint.
+
+    V2.0 Sprint 6: Records grading metrics (latency, success, LLM calls)
+    and creates trace spans for observability.
     """
+    # V2.0 Sprint 6: Metrics + tracing
+    import time as _time
+    _start = _time.time()
+    _subject = question.get("subject", "未知")
+    _qtype = question.get("type", "long_answer")
+    _success = True
+    try:
+        result = _grade_long_answer_impl(student_answer, question, student_id)
+        return result
+    except Exception as e:
+        _success = False
+        raise
+    finally:
+        _duration_ms = round((_time.time() - _start) * 1000.0, 2)
+        try:
+            from metrics import record_grading
+            record_grading(_subject, _qtype, _duration_ms, _success)
+        except ImportError:
+            pass
+        try:
+            from alerting import get_alert_manager
+            get_alert_manager().record_grading(_success)
+        except ImportError:
+            pass
+
+
+def _grade_long_answer_impl(student_answer: str, question: dict, student_id: str) -> dict:
+    """Original grade_long_answer implementation (extracted for metrics wrapping)."""
     steps = question.get("steps", [])
     correct = question.get("answer", "")
     step_results = []
@@ -179,7 +250,7 @@ def grade_long_answer(student_answer: str, question: dict, student_id: str) -> d
         result["emotional_feedback"] = _attach_emotional_feedback(
             student_id, question, result
         )
-        return result
+        return _apply_content_safety_filter(result, student_id, question)
 
     # Students with errors
     for step in steps:
@@ -230,7 +301,7 @@ def grade_long_answer(student_answer: str, question: dict, student_id: str) -> d
     result["emotional_feedback"] = _attach_emotional_feedback(
         student_id, question, result
     )
-    return result
+    return _apply_content_safety_filter(result, student_id, question)
 
 
 
@@ -280,7 +351,7 @@ def grade_long_answer_with_trace(
         result["emotional_feedback"] = _attach_emotional_feedback(
             student_id, question, result
         )
-    return result
+    return _apply_content_safety_filter(result, student_id, question)
 
 
 def _attach_emotional_feedback(

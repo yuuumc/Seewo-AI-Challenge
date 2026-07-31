@@ -38,13 +38,12 @@ _MAX_TRACES_PER_KEY = 8
 _RUNTIME_TRACE_STORE: "OrderedDict[Tuple[str, str], List[TraceCollector]]" = OrderedDict()
 _STORE_LOCK = Lock()
 
-# Singleton provider cache. We keep the provider and a tuple of
-# the env-var values it was selected against; a mismatch forces
-# a re-resolve. Using a tuple (not ``hash()``) makes the test
-# behaviour predictable and avoids the salt-randomisation of
-# ``hash(str)`` between Python processes.
-_PROVIDER: Optional[LLMProvider] = None
-_PROVIDER_ENV_FINGERPRINT: Optional[Tuple[str, str, str]] = None
+# Per-school provider cache (Sprint 6 · 6.7). Keyed by school_id so
+# that different tenants can have different LLM configs. Each entry
+# stores the provider and a fingerprint tuple of the config values
+# it was built against; a mismatch forces re-resolve.
+_PROVIDERS: Dict[int, LLMProvider] = {}
+_PROVIDER_FINGERPRINTS: Dict[int, tuple] = {}
 _PROVIDER_LOCK = Lock()
 
 
@@ -61,66 +60,116 @@ def _env_fingerprint() -> Tuple[str, str, str]:
     )
 
 
-def get_provider() -> LLMProvider:
-    """Return a process-wide singleton :class:`LLMProvider`.
+def _resolve_fingerprint(school_id: int) -> tuple:
+    """Return config fingerprint for a school: env vars + tenant config.
 
-    Selection rule:
-
-        1. If ``LLM_API_KEY`` is non-empty -> :class:`OpenAIProvider`
-           (default OpenAI-compatible endpoint) OR
-           :class:`DeepSeekProvider` (when ``LLM_MODEL=deepseek-math``)
-        2. Otherwise                       -> :class:`MockProvider`
-
-    C-08 DeepSeek-Math dispatch: triggered solely by
-    ``LLM_MODEL == "deepseek-math"`` (case-insensitive). Every other
-    value falls through to the original OpenAI path — default
-    behaviour is unchanged for unset / non-deepseek LLM_MODEL.
-
-    The singleton is invalidated whenever any of the three
-    env vars change. This makes the function safe to call in
-    tests that mutate ``os.environ`` (and cheap enough to call
-    on every request - it's just three ``os.environ.get`` calls).
+    Includes tenant-level overrides so that a config change for a
+    specific school invalidates only that school's cached provider.
     """
-    global _PROVIDER, _PROVIDER_ENV_FINGERPRINT
+    env_fp = _env_fingerprint()
+    try:
+        from tenant_llm_config_manager import get_tenant_config
 
-    fp = _env_fingerprint()
-    with _PROVIDER_LOCK:
-        if _PROVIDER is not None and _PROVIDER_ENV_FINGERPRINT == fp:
-            return _PROVIDER
-        # Import locally to avoid a circular import at package load.
-        from engine.llm.openai_provider import read_provider_config_from_env
-        from engine.llm.openai_provider import OpenAIProvider
-        from engine.llm.mock_provider import MockProvider
+        tenant = get_tenant_config(school_id)
+        if tenant:
+            tenant_fp = (
+                str(tenant.get("model_name")),
+                str(tenant.get("base_url")),
+                str(tenant.get("api_key_secret")),
+                str(tenant.get("temperature")),
+                str(tenant.get("timeout")),
+            )
+            return env_fp + tenant_fp
+    except Exception:
+        pass
+    return env_fp
 
+
+def _build_provider(school_id: int) -> LLMProvider:
+    """Construct a provider for the given school.
+
+    Resolution order (Sprint 6 · 6.7):
+        1. Tenant config (tenant_llm_config_manager.resolve_llm_config)
+        2. Environment variables (read_provider_config_from_env)
+        3. MockProvider (fallback when no API key anywhere)
+    """
+    from engine.llm.openai_provider import (
+        read_provider_config_from_env,
+        OpenAIProvider,
+    )
+    from engine.llm.mock_provider import MockProvider
+
+    # Try tenant config first
+    cfg = None
+    try:
+        from tenant_llm_config_manager import resolve_llm_config
+
+        resolved = resolve_llm_config(school_id)
+        if resolved.get("api_key"):
+            # Normalize tenant config keys to provider constructor keys
+            cfg = {
+                "base_url": resolved.get("base_url", ""),
+                "api_key": resolved.get("api_key", ""),
+                "model": resolved.get("model_name", ""),
+                "timeout": str(resolved.get("timeout", 30)),
+                "max_retries": os.environ.get("LLM_MAX_RETRIES", "1").strip(),
+            }
+            # Validate allowlist for tenant overrides
+            from engine.llm.allowlist import safe_validate
+
+            if not safe_validate(
+                cfg["base_url"], cfg["model"], provider_name="openai"
+            ):
+                cfg = None  # fail-safe → fall through to env / mock
+    except Exception:
+        pass
+
+    if cfg is None:
         cfg = read_provider_config_from_env()
-        if cfg is None:
-            _PROVIDER = MockProvider()
-        elif cfg["model"].strip().lower() == "deepseek-math":
-            # C-08: dedicated DeepSeek-Math provider. Single env-only
-            # config source (no second Pydantic layer); default base_url
-            # is the DeepSeek official endpoint (LLM_BASE_URL overrides).
-            from engine.llm.deepseek_provider import (
-                DeepSeekProvider,
-                read_deepseek_config_from_env,
-            )
 
-            try:
-                _PROVIDER = DeepSeekProvider(**read_deepseek_config_from_env())
-            except ValueError:
-                # V1.0 item 5: allowlist 校验失败 → 回退 MockProvider
-                from engine.llm.mock_provider import MockProvider
+    if cfg is None:
+        return MockProvider()
 
-                _PROVIDER = MockProvider()
-        else:
-            _PROVIDER = OpenAIProvider(
-                base_url=cfg["base_url"],
-                api_key=cfg["api_key"],
-                model=cfg["model"],
-                timeout=float(cfg["timeout"]),
-                max_retries=int(cfg["max_retries"]),
-            )
-        _PROVIDER_ENV_FINGERPRINT = fp
-        return _PROVIDER
+    model_lower = cfg["model"].strip().lower()
+    if model_lower == "deepseek-math":
+        from engine.llm.deepseek_provider import (
+            DeepSeekProvider,
+            read_deepseek_config_from_env,
+        )
+
+        try:
+            return DeepSeekProvider(**read_deepseek_config_from_env())
+        except ValueError:
+            return MockProvider()
+
+    return OpenAIProvider(
+        base_url=cfg["base_url"],
+        api_key=cfg["api_key"],
+        model=cfg["model"],
+        timeout=float(cfg["timeout"]),
+        max_retries=int(cfg["max_retries"]),
+    )
+
+
+def get_provider(school_id: int = 1) -> LLMProvider:
+    """Return a per-school singleton :class:`LLMProvider`.
+
+    Sprint 6 (6.7): now accepts ``school_id`` to support multi-tenant
+    LLM configs. Each school gets its own cached provider, built from
+    tenant config overrides (if any) or env vars. Backward compatible:
+    ``get_provider()`` with no args uses ``school_id=1`` (the default
+    school), preserving pre-V2.0 behaviour.
+
+    The singleton for a given school is invalidated whenever the env
+    vars or that school's tenant config change.
+    """
+    fp = _resolve_fingerprint(school_id)
+    with _PROVIDER_LOCK:
+        if school_id in _PROVIDERS and _PROVIDER_FINGERPRINTS.get(school_id) == fp:
+            return _PROVIDERS[school_id]
+        _PROVIDERS[school_id] = _build_provider(school_id)
+        _PROVIDER_FINGERPRINTS[school_id] = fp
+        return _PROVIDERS[school_id]
 
 
 def store_trace(collector: TraceCollector) -> None:
@@ -187,13 +236,12 @@ def get_runtime_trace(
 
 
 def reset_runtime_trace_store() -> None:
-    """Clear all stored traces + reset the provider singleton.
+    """Clear all stored traces + reset all cached providers.
 
     Test helper. Idempotent.
     """
     with _STORE_LOCK:
         _RUNTIME_TRACE_STORE.clear()
-    global _PROVIDER, _PROVIDER_ENV_FINGERPRINT
     with _PROVIDER_LOCK:
-        _PROVIDER = None
-        _PROVIDER_ENV_FINGERPRINT = None
+        _PROVIDERS.clear()
+        _PROVIDER_FINGERPRINTS.clear()
