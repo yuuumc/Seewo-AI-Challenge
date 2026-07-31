@@ -25,8 +25,8 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Content-Security-Policy": (
         "default-src 'self'; "
-        "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
-        "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
+        "script-src 'self' https://cdn.jsdelivr.net https://cdn.tailwindcss.com https://unpkg.com 'unsafe-inline'; "
+        "style-src 'self' https://cdn.jsdelivr.net https://cdn.tailwindcss.com 'unsafe-inline'; "
         "img-src 'self' data: https:; "
         "font-src 'self' https://cdn.jsdelivr.net; "
         "connect-src 'self'; "
